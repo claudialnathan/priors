@@ -7,8 +7,7 @@ constraints, dead-ends, and patterns that accrue across coding sessions.
 It runs on Anthropic's `memory_20250818` tool and installs into any
 project as a Claude Code skill with slash commands and a cold-start hook.
 
-It is not a notes app, a memory layer, or a chat-history summariser. It
-is the structured trajectory dataset a project carries forward between
+It is the structured trajectory dataset a project carries forward between
 context resets.
 
 ---
@@ -16,7 +15,7 @@ context resets.
 ## The idea
 
 Most "agent memory" work treats the agent as the protagonist and memory
-as infrastructure the agent uses. `priors` inverts that.
+as infrastructure the agent uses, the idea of `priors` is to invert that.
 
 **The project's trajectory is primary. Agents are transient participants
 in it.** The sediment persists; agents come and go against it.
@@ -24,12 +23,7 @@ in it.** The sediment persists; agents come and go against it.
 Agent-primary tools optimise for a smarter, more capable agent.
 Trajectory-primary tools optimise for the project developing legible
 shape — a stance future agents inherit without being told. These are
-genuinely different products, and they point at different features. If
-you read the priors for a project you've never seen and come away with a
-sense of what gets accepted there, the tool is doing its job. If you
-don't, it's a fancy notes directory and the framing was wrong.
-
-That's the wager.
+genuinely different products, and they point at different features.
 
 ---
 
@@ -40,8 +34,8 @@ Three gaps show up across every serious piece of memory/harness work
 humanlayer's CLAUDE.md critique):
 
 1. **Untyped free-text loses causality.** "We chose X" buries the
-   decision. Six months later you can't ask *what else was considered,
-   when would we revisit.* `priors` entries are typed —
+   decision. Six months later you can't ask _what else was considered,
+   when would we revisit._ `priors` entries are typed —
    `correction`, `decision`, `dead-end`, `pattern`, `constraint`,
    `open-question`, `operator` — each with its own schema. The retrieval
    question is "what did we decide," not "what did we say."
@@ -79,7 +73,7 @@ grep-friendly, diff-friendly, survives tool migrations. You can open
 `/memories/priors/` and understand what's going on in under a minute
 without running the tool.
 
-The format *is* the abstraction. Any agent that speaks `memory_20250818`
+The format _is_ the abstraction. Any agent that speaks `memory_20250818`
 and respects the typed entries shares the sediment. No orchestration
 primitives. Coordination-free multi-agent, because the format is the
 coordination.
@@ -105,15 +99,15 @@ session start pointing the agent at the store.
 
 ## Commands (Phase 1)
 
-| Command | What it does |
-|---|---|
-| `/priors-init` | Bootstrap the store; interview for operator context |
-| `/priors-log` | Write one typed entry for work that just happened |
-| `/priors-recall <query>` | Search by tag, type, substring, or file path |
-| `/priors-state` | Refresh `state.json` from the working tree |
-| `/priors-index` | Regenerate `index.json` (after manual entry edits) |
-| `/priors-auto-on` | Opt into per-prompt operator injection (~200 tok/prompt) |
-| `/priors-auto-off` | Revert to cold-start-only |
+| Command                  | What it does                                             |
+| ------------------------ | -------------------------------------------------------- |
+| `/priors-init`           | Bootstrap the store; interview for operator context      |
+| `/priors-log`            | Write one typed entry for work that just happened        |
+| `/priors-recall <query>` | Search by tag, type, substring, or file path             |
+| `/priors-state`          | Refresh `state.json` from the working tree               |
+| `/priors-index`          | Regenerate `index.json` (after manual entry edits)       |
+| `/priors-auto-on`        | Opt into per-prompt operator injection (~200 tok/prompt) |
+| `/priors-auto-off`       | Revert to cold-start-only                                |
 
 Token budget is load-bearing. **Default posture: zero ambient per-prompt
 cost.** The cold-start hook fires once per session and reads three small
@@ -125,7 +119,7 @@ budget or ships as opt-in.
 
 ## What it does not do yet
 
-Phase 1 makes the tool *exist*. Phase 2+ makes it *different*.
+(but will),
 
 - **No automatic distillation.** `/priors-distill` is stubbed. Phase 2
   runs a sub-agent over session transcripts and proposes typed entries
@@ -143,7 +137,7 @@ Phase 1 makes the tool *exist*. Phase 2+ makes it *different*.
 
 ---
 
-## What we refuse to do, ever
+## What it does not intend to do
 
 - **No hand-authored human narrative.** The machine store is canonical;
   the human view is compiled. `compiled/narrative.md` is output only —
@@ -161,20 +155,6 @@ Phase 1 makes the tool *exist*. Phase 2+ makes it *different*.
   constraint, not a footnote.
 - **No model-specific coupling.** The format is tool-agnostic. Claude
   Code is the reference implementation; the format should outlive it.
-
----
-
-## Status
-
-Phase 1 scaffold is in place: skill, slash commands, two hooks, schema.
-End-to-end testing against the live `memory_20250818` tool is **still
-pending**. The first real test is a fresh Claude Code session →
-`/priors-init` → see `/memories/priors/` get populated. Expect rough
-edges until that lands.
-
-Phases 2–5 are designed but unbuilt. The phase boundaries are
-deliberate — this repo will not add Phase 2 features until Phase 1
-works end-to-end on a real project.
 
 ---
 
