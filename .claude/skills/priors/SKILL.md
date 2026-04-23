@@ -1,35 +1,35 @@
 ---
-name: playbook
+name: priors
 description: >
-  Manage the /memories/playbook/ store — a typed, project-scoped trajectory
+  Manage the /memories/priors/ store — a typed, project-scoped trajectory
   dataset of corrections, constraints, patterns, decisions, dead-ends,
   operator context, and open questions. Use at session start to orient via
   HEAD.md + operator.yaml. Use during work to recall relevant entries. Use
-  when writing new entries per the schema. Triggered by any /playbook-*
+  when writing new entries per the schema. Triggered by any /priors-*
   command and by "why did we", "what did we decide", "what not to try",
-  "cold-start context" questions. If /memories/playbook/ exists in this
+  "cold-start context" questions. If /memories/priors/ exists in this
   project, this skill applies automatically.
 ---
 
-# Playbook
+# Priors
 
 Project-scoped harness memory. A typed trajectory dataset of the decisions,
 corrections, constraints, and dead-ends that shape how this project is
 built. Implemented as the client-side backend behind Anthropic's
-`memory_20250818` tool — files live under `/memories/playbook/`.
+`memory_20250818` tool — files live under `/memories/priors/`.
 
-**Positioning:** "the harness is the dataset." The playbook is not a notes
+**Positioning:** "the harness is the dataset." The priors is not a notes
 app. Every decision here is judged by whether it makes the harness more
 differentiated for this specific project.
 
 **Primary use case:** handoff artifact across context resets. Entries must
 be self-contained enough that a cold-start agent becomes productive by
-reading the playbook only — not by replaying prior conversation history.
+reading the priors only — not by replaying prior conversation history.
 
 ## File layout
 
 ```
-/memories/playbook/
+/memories/priors/
   HEAD.md              # orientation — always view first
   index.json           # machine index of all active entries
   operator.yaml        # rolling single-file doc of user-in-project context
@@ -49,27 +49,27 @@ summary; consult the spec when field questions come up.
 ## Cold-start protocol
 
 On session start, the `SessionStart` hook should have already surfaced the
-playbook. Do this yourself if it didn't:
+priors. Do this yourself if it didn't:
 
-1. `memory.view /memories/playbook/HEAD.md` — the orientation file. Tells
+1. `memory.view /memories/priors/HEAD.md` — the orientation file. Tells
    you how to navigate. Short by design.
-2. `memory.view /memories/playbook/operator.yaml` — who the user is, in the
+2. `memory.view /memories/priors/operator.yaml` — who the user is, in the
    context of this project.
-3. `memory.view /memories/playbook/state.json` — current branch, active
+3. `memory.view /memories/priors/state.json` — current branch, active
    feature, known-broken list.
 
 **Do not read `entries/` unprompted.** That's the long tail; load it on
 demand only.
 
 If any of those three files don't exist, tell the user to run
-`/playbook-init` before proceeding.
+`/priors-init` before proceeding.
 
 ## During work — retrieval
 
 When a topic is in play ("why did we…", "what did we decide about…", "what
 not to try"), reach for the index first, not the full entry set:
 
-1. `memory.view /memories/playbook/index.json` — grep-friendly JSON.
+1. `memory.view /memories/priors/index.json` — grep-friendly JSON.
 2. Filter by tag, type, or substring to find candidate entry IDs.
 3. `memory.view` only those matched entries.
 
@@ -98,7 +98,7 @@ All entries share common fields: `id`, `type`, `created`, `valid_from`,
 Get timestamps from `TZ=Australia/Perth date '+%Y-%m-%d-%H%M'` — do not
 guess.
 
-**After writing any entry:** regenerate `index.json` via `/playbook-index`
+**After writing any entry:** regenerate `index.json` via `/priors-index`
 (or equivalent command). Never hand-edit the index.
 
 ## Epistemic framing — critical
@@ -117,9 +117,12 @@ false-user-belief framing collapses model accuracy (DeepSeek R1: 90%+ →
 Single rolling file, NOT individual entries. Project-scoped.
 
 - Read at session start via the `SessionStart` hook path above.
-- Referenced in the `UserPromptSubmit` hook to inject a compact operator
-  context block on every prompt.
-- Updated by the user (directly or via `/playbook-log` with type operator).
+- **Ambient per-prompt injection is opt-in** — disabled by default. Users
+  who want persistent reinforcement run `/priors-auto-on` to register the
+  `UserPromptSubmit` hook (+~200 tokens per prompt). `/priors-auto-off`
+  reverts. The default is zero ambient cost; operator context reaches
+  the agent via the cold-start read only.
+- Updated by the user (directly or via `/priors-log` with type operator).
 - Carries an `as_of:` date. When a field changes, update `as_of` — don't
   lose the old value silently (append under a `superseded_fields:` list
   if it matters).
@@ -152,18 +155,20 @@ In Phase 1, the tool captures and retrieves. It does NOT yet:
 
 If a user request points at a Phase 2+ feature, tell them which phase it
 belongs to and offer the Phase 1 workaround (usually: manual entry via
-`/playbook-log`).
+`/priors-log`).
 
 ## Commands
 
 | Command | Purpose |
 |---|---|
-| `/playbook-init` | Bootstrap `/memories/playbook/` for this project. First E2E surface. |
-| `/playbook-log` | Write one typed entry for current work. |
-| `/playbook-state` | Update `state.json` from the current working tree. |
-| `/playbook-index` | Regenerate `index.json` from `entries/`. Idempotent. |
-| `/playbook-recall <query>` | Search `index.json` by tag / type / substring. |
-| `/playbook-distill` | (Phase 2, stubbed) Sub-agent proposes entries from session transcript. |
+| `/priors-init` | Bootstrap `/memories/priors/` for this project. First E2E surface. |
+| `/priors-log` | Write one typed entry for current work. |
+| `/priors-state` | Update `state.json` from the current working tree. |
+| `/priors-index` | Regenerate `index.json` from `entries/`. Idempotent. |
+| `/priors-recall <query>` | Search by tag / type / substring / file path. |
+| `/priors-auto-on` | Enable ambient per-prompt operator injection (opt-in). |
+| `/priors-auto-off` | Disable ambient per-prompt operator injection. |
+| `/priors-distill` | (Phase 2, stubbed) Sub-agent proposes entries from session transcript. |
 
 Each command has a full instruction file under `.claude/commands/`. Read
 the relevant one before executing — don't guess at argument shapes.

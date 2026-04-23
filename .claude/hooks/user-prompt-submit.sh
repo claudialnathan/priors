@@ -23,13 +23,13 @@ cat > /dev/null || true
 #   ~/.claude/projects/<slug>/memory/
 # where <slug> is the cwd-encoded project directory.
 #
-# For the playbook we're reading operator.yaml if the backend has
+# For the priors we're reading operator.yaml if the backend has
 # persisted it there. If the path resolution changes upstream, this
 # script is the single place to update.
 
 project_slug="$(pwd | sed 's|/|-|g')"
 mem_root="${HOME}/.claude/projects/${project_slug}/memory"
-operator_file="${mem_root}/memories/playbook/operator.yaml"
+operator_file="${mem_root}/memories/priors/operator.yaml"
 
 if [[ ! -f "$operator_file" ]]; then
   # No operator context yet — exit silently. Don't nag on every prompt.
@@ -43,7 +43,7 @@ fi
 as_of="$(awk '/^as_of:/ {print $2; exit}' "$operator_file" 2>/dev/null || echo "unknown")"
 role="$(awk '/^role_in_project:/ {sub(/^role_in_project:[[:space:]]*/, ""); print; exit}' "$operator_file" 2>/dev/null || echo "")"
 
-echo "<playbook-operator as_of=\"$as_of\">"
+echo "<priors-operator as_of=\"$as_of\">"
 if [[ -n "$role" ]]; then
   echo "Role on this project: $role"
 fi
@@ -62,6 +62,6 @@ awk '
 
 echo ""
 echo "These are as-of records, not present-tense beliefs. Frame accordingly."
-echo "</playbook-operator>"
+echo "</priors-operator>"
 
 exit 0

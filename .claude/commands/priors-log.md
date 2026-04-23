@@ -1,16 +1,16 @@
 ---
-description: Force-write one typed playbook entry for the current work. User picks type, summary, and fields.
+description: Force-write one typed priors entry for the current work. User picks type, summary, and fields.
 ---
 
-# /playbook-log
+# /priors-log
 
-Write a single typed entry to `/memories/playbook/entries/` for something
+Write a single typed entry to `/memories/priors/entries/` for something
 that just happened in this session. Bypasses any threshold — if the user
 runs this, they've decided the thing is logworthy.
 
 ## When to use
 
-- User explicitly runs `/playbook-log`.
+- User explicitly runs `/priors-log`.
 - You just took a correction from the user and should log it. In this
   case, don't wait for the command — prepare the entry, then tell the
   user you're about to log and write it. Corrections are mandatory.
@@ -26,7 +26,7 @@ the other in the entry body.
 | Type | When |
 |---|---|
 | `correction` | Agent did something wrong; user corrected. |
-| `constraint` | A rule. Phase 1: create as `note` unless user explicitly promotes via future `/playbook-promote`. |
+| `constraint` | A rule. Phase 1: create as `note` unless user explicitly promotes via future `/priors-promote`. |
 | `pattern` | Proven approach worth remembering. Not a hard rule. |
 | `decision` | Choice was made between alternatives. |
 | `dead-end` | Approach was tried and failed. Distinct from `correction`. |
@@ -42,6 +42,12 @@ collect before writing:
 - `summary` (one line, what someone grepping the log would search for)
 - `tags` (3–6; check `index.json` first for existing tags — prefer reuse over inventing)
 - `why` for `correction` / `decision` / `dead-end` — do not write these types without a `why`
+- `source.files` — REQUIRED for `correction`, `decision`, `pattern`,
+  `dead-end` entries. List the actual file path(s) the entry touches.
+  This is what makes entity/file-lookup recall work (e.g., "what's
+  SidebarGroupLabelDemo?" resolves by `source.files` substring match).
+  If an entry genuinely has no file anchor, push back on whether it's
+  worth logging at all.
 
 **Type-specific:** per the schemas in the spec. Don't fabricate — ask
 the user if a required field isn't clear from context.
@@ -59,9 +65,9 @@ guess. Slug: 2–5 words from the summary, kebab-case.
 
 1. Draft the entry in YAML per the schema.
 2. Show the user the draft. Ask: write as-is, revise, or cancel?
-3. On approval, `memory.create /memories/playbook/entries/<filename>`
+3. On approval, `memory.create /memories/priors/entries/<filename>`
    with the full entry.
-4. Regenerate the index: invoke `/playbook-index` logic (read entries,
+4. Regenerate the index: invoke `/priors-index` logic (read entries,
    rewrite index.json). Do not hand-edit the index.
 5. Tell the user the entry ID and the tags it was filed under.
 
@@ -70,7 +76,7 @@ guess. Slug: 2–5 words from the summary, kebab-case.
 If the user says "remember that I..." or describes a project-scoped
 preference, that's an `operator.yaml` edit, NOT an entry. Workflow:
 
-1. `memory.view /memories/playbook/operator.yaml`.
+1. `memory.view /memories/priors/operator.yaml`.
 2. Propose the diff to the user.
 3. On approval, update `as_of:` to today and apply the change via
    `memory.str_replace`.
@@ -84,7 +90,7 @@ preference, that's an `operator.yaml` edit, NOT an entry. Workflow:
 - Do not invent tags. Check `index.json` first.
 - Do not backdate entries. Timestamp from system clock, always.
 - Do not write multiple entries in one invocation. If the session
-  warrants that, use `/playbook-distill` instead (Phase 2 — for now,
+  warrants that, use `/priors-distill` instead (Phase 2 — for now,
   tell the user to run this command multiple times).
 - Do not hand-edit `index.json` after writing. Run the index
   regeneration step.

@@ -1,8 +1,8 @@
 ---
-description: Update /memories/playbook/state.json with live harness pointers — current branch, active feature, open PRs, known-broken list.
+description: Update /memories/priors/state.json with live harness pointers — current branch, active feature, open PRs, known-broken list.
 ---
 
-# /playbook-state
+# /priors-state
 
 Refresh `state.json` from the working tree. Narrow scope: things that are
 true *right now* about the codebase.
@@ -12,11 +12,11 @@ true *right now* about the codebase.
 ```json
 {
   "updated": "<ISO-8601 timestamp>",
-  "active_branch": "feat/playbook-phase-1",
+  "active_branch": "feat/priors-phase-1",
   "last_known_good_commit": "abc1234",
-  "active_feature": "playbook-phase-1-capture",
+  "active_feature": "priors-phase-1-capture",
   "open_prs": [
-    {"number": 42, "title": "Scaffold playbook commands"}
+    {"number": 42, "title": "Scaffold priors commands"}
   ],
   "known_broken": []
 }
@@ -27,7 +27,7 @@ a direct context tax.
 
 ## Update procedure
 
-1. `memory.view /memories/playbook/state.json` to read current state.
+1. `memory.view /memories/priors/state.json` to read current state.
 2. Collect fresh values:
    - `active_branch`: `git rev-parse --abbrev-ref HEAD 2>/dev/null`
    - `last_known_good_commit`: ask the user OR default to current HEAD.
@@ -46,7 +46,7 @@ a direct context tax.
 
 ## When to run
 
-- User explicitly asks ("update state", "refresh state", "/playbook-state").
+- User explicitly asks ("update state", "refresh state", "/priors-state").
 - At the start of a new feature or after a branch switch, if the state
   file is clearly stale (active_branch doesn't match current).
 - Do NOT auto-run this on every prompt or edit. That thrashes the file
