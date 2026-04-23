@@ -14,9 +14,12 @@ entries were edited outside the normal flow.
    optionally `/memories/priors/archive/` if the user passes
    `--include-archive`, Phase 2).
 2. For each, extract the header fields: `id`, `type`, `summary`, `tags`,
-   `status`, `derived_from` (if present), `valid_through` (if present).
-3. Skip entries with `status: archived` or `status: superseded_by:<id>`
-   unless the user asked to include them.
+   `status`, `derived_from` (if present), `supersedes` (if non-empty),
+   `superseded_by` (if non-empty), `valid_through` (if present).
+3. Skip entries with `status: archived` or `status: superseded` unless
+   the user asked to include them. Entries whose `superseded_by` is
+   non-empty should have `status: superseded` — surface a mismatch rather
+   than papering over it.
 4. Write the result to `/memories/priors/index.json` with this shape:
 
 ```json
