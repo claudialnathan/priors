@@ -1,5 +1,2 @@
-settings.local.json
-old-context
-notes.md
-thinking.md
-phase-1-spec.md
+internal/
+.claude/settings.local.json
