@@ -1,36 +1,36 @@
 ---
-description: Bootstrap the /memories/playbook/ store for this project — scaffold files, interview for operator.yaml, write HEAD.md.
+description: Bootstrap the /memories/priors/ store for this project — scaffold files, interview for operator.yaml, write HEAD.md.
 ---
 
-# /playbook-init
+# /priors-init
 
-Bootstrap the playbook for this project. First end-to-end surface.
+Bootstrap the priors for this project. First end-to-end surface.
 
 ## When to use
 
-- No `/memories/playbook/HEAD.md` exists yet for this project.
-- User explicitly runs `/playbook-init`.
-- User asks to "set up playbook" / "start a playbook" / similar.
+- No `/memories/priors/HEAD.md` exists yet for this project.
+- User explicitly runs `/priors-init`.
+- User asks to "set up priors" / "start a priors" / similar.
 
 ## Preflight
 
 Before writing anything, check:
 
-1. `memory.view /memories/playbook/` — does the directory exist?
+1. `memory.view /memories/priors/` — does the directory exist?
 2. If it does, and `HEAD.md` is present, ask the user: overwrite, or abort?
-   Default to abort. Do not silently overwrite existing playbook content.
+   Default to abort. Do not silently overwrite existing priors content.
 3. If the directory doesn't exist, proceed.
 
 ## Step 1 — Scaffold the directory tree
 
 Create empty placeholders via `memory.create` for:
 
-- `/memories/playbook/HEAD.md` (content in step 3)
-- `/memories/playbook/index.json` — start as `{"updated": "<now>", "entries": [], "tags": {}}`
-- `/memories/playbook/state.json` — start as `{"updated": "<now>", "active_branch": null, "last_known_good_commit": null, "active_feature": null, "open_prs": [], "known_broken": []}`
-- `/memories/playbook/entries/.keep` — empty file to hold the directory
-- `/memories/playbook/compiled/.keep`
-- `/memories/playbook/archive/.keep`
+- `/memories/priors/HEAD.md` (content in step 3)
+- `/memories/priors/index.json` — start as `{"updated": "<now>", "entries": [], "tags": {}}`
+- `/memories/priors/state.json` — start as `{"updated": "<now>", "active_branch": null, "last_known_good_commit": null, "active_feature": null, "open_prs": [], "known_broken": []}`
+- `/memories/priors/entries/.keep` — empty file to hold the directory
+- `/memories/priors/compiled/.keep`
+- `/memories/priors/archive/.keep`
 
 Get `<now>` from `TZ=Australia/Perth date -Iseconds`. Do not guess timestamps.
 
@@ -75,7 +75,7 @@ epistemic_note: >
 Template (substitute `<project name>` from the current repo):
 
 ```markdown
-# Playbook — <project name>
+# Priors — <project name>
 
 Harness memory for this project. Read this file first. Do not dump the full
 entries directory into context.
@@ -93,7 +93,7 @@ operator context (the person working on this project).
 2. **Topic active:** grep index.json by tag or type; read only matched entries.
 3. **New correction / decision / dead-end:** write a new entry to entries/
    per the schema. Never rewrite existing entries.
-4. **Promotion or curation:** user runs `/playbook-distill` or similar —
+4. **Promotion or curation:** user runs `/priors-distill` or similar —
    do not do these steps unprompted.
 
 ## Retrieval cheatsheet
@@ -115,6 +115,15 @@ Capture + retrieve. Not yet implemented:
 - Constraint enforcement via pre-tool-use hooks (Phase 4)
 - Compiled human narrative (Phase 3)
 - Auto-applied harness artifacts (never without diff review)
+
+## Defaults
+
+- `SessionStart` hook fires once per session (cold-start orientation).
+- `UserPromptSubmit` hook is **off by default** — no per-prompt token
+  cost. Run `/priors-auto-on` to enable ambient operator injection;
+  `/priors-auto-off` reverts.
+- All other capture is user-invoked via `/priors-log` (or `/priors-distill`
+  once Phase 2 ships).
 ```
 
 ## Step 4 — Update state.json from the working tree
@@ -130,24 +139,24 @@ If not a git repo, leave these null. The user can set them later.
 
 Tell the user what was created. Suggest next steps:
 
-- Run `/playbook-log` when the next loggable thing happens (correction, decision, dead-end).
-- `/playbook-recall <tag>` to search entries once there are any.
+- Run `/priors-log` when the next loggable thing happens (correction, decision, dead-end).
+- `/priors-recall <tag>` to search entries once there are any.
 - Edit `operator.yaml` directly when their context on this project shifts — don't silently overwrite; update `as_of`.
 
 ## What this command does NOT do
 
 - Does not register hooks in `settings.local.json`. The user installs the
   plugin; hook registration is separate.
-- Does not create any entries. The playbook starts empty; entries accrue
+- Does not create any entries. The priors starts empty; entries accrue
   through use.
 - Does not write compiled outputs. `compiled/` stays empty until Phase 3.
-- Does not touch CLAUDE.md or repo-level files. Playbook lives under
+- Does not touch CLAUDE.md or repo-level files. Priors lives under
   `/memories/`, not in the repo tree.
 
 ## Error handling
 
 - If `memory.view /memories/` fails (tool not enabled), stop and tell the
-  user: the playbook requires the `memory_20250818` tool to be enabled
+  user: the priors requires the `memory_20250818` tool to be enabled
   for this session.
 - If any `memory.create` fails partway, report which files succeeded and
   which didn't. Do not auto-retry silently.
