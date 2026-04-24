@@ -2,218 +2,113 @@
 
 > A project's trajectory becomes legible to future agents as causality, not as retrieval.
 
-`priors` is a typed, project-scoped dataset of the decisions, corrections,
-constraints, dead-ends, and patterns that accrue across coding sessions.
-It runs on Anthropic's `memory_20250818` tool and installs into any
-project as a Claude Code skill with slash commands and a cold-start hook.
+priors is a typed, project-scoped dataset of the decisions, corrections, constraints, dead-ends, and patterns that accrue across coding sessions. Directory-backed, tool-agnostic, zero ambient per-prompt cost. Future agents inherit the project's shape without being told.
 
-It is the structured trajectory dataset a project carries forward between
-context resets.
+## The inversion
 
----
+Most agent-memory work treats the agent as protagonist and memory as infrastructure the agent uses. priors inverts that. The project's trajectory is primary. Agents are transient participants. Sediment persists; agents come and go against it.
 
-## The idea
-
-Most "agent memory" work treats the agent as the protagonist and memory
-as infrastructure the agent uses, the idea of `priors` is to invert that.
-
-**The project's trajectory is primary. Agents are transient participants
-in it.** The sediment persists; agents come and go against it.
-
-Agent-primary tools optimise for a smarter, more capable agent.
-Trajectory-primary tools optimise for the project developing legible
-shape — a stance future agents inherit without being told. These are
-genuinely different products, and they point at different features.
-
----
+Agent-primary tools optimise for a smarter, more capable agent. Trajectory-primary tools optimise for the project developing legible shape, a stance future agents inherit without being told. Different products, different features.
 
 ## What it fixes
 
-Three gaps show up across every serious piece of memory/harness work
-(ACE, ReasoningBank, Anthropic's harness-design-long-running-apps,
-humanlayer's CLAUDE.md critique):
+Three gaps run through the research (ACE, ReasoningBank, Anthropic's harness-design-for-long-running-apps piece, humanlayer's CLAUDE.md critique). priors closes all three.
 
-1. **Untyped free-text loses causality.** "We chose X" buries the
-   decision. Six months later you can't ask _what else was considered,
-   when would we revisit._ `priors` entries are typed —
-   `correction`, `decision`, `dead-end`, `pattern`, `constraint`,
-   `open-question`, `operator` — each with its own schema. The retrieval
-   question is "what did we decide," not "what did we say."
+**Untyped free-text loses causality.** "We chose X" records the outcome and loses the structure. Six months later you can't ask what else was considered or when we'd revisit. priors ships typed entries (`correction`, `decision`, `dead-end`, `pattern`, `constraint`, `open-question`) plus a rolling `operator.yaml` for the person-in-project context. Each type carries its own schema. You can ask what was decided, what was rejected, under what conditions we'd revisit.
 
-2. **Contradictions are silent overwrites.** Most stores append or
-   overwrite when a new learning conflicts with an old one — and the
-   disagreement itself is high-signal. `priors` preserves both.
-   `supersedes` / `superseded_by` is a bidirectional graph, not a status
-   flag. Old layers keep their shape after they stop being current.
+**Contradictions silently overwrite.** Most stores append or overwrite when a new learning conflicts with an old one. The disagreement is the signal. priors keeps both entries and emits the contradiction as a first-class record with a supersede / coexist / revert resolution. `supersedes` and `superseded_by` form a bidirectional graph. Old layers keep their shape after they stop being current.
 
-3. **Notes don't produce back-pressure.** A rule in a notes file depends
-   on the agent remembering to read it. The lessons that actually
-   compound are the ones the environment refuses to let you violate.
-   Promoting an entry to `constraint` requires an explicit enforcement
-   target (pre-tool-use hook, system-reminder, lint rule). Descriptive
-   entries without enforcement are `note` and decay.
-
----
+**Notes don't produce back-pressure.** A rule in a notes file depends on the agent remembering to read and obey it. The lessons that compound are the ones the environment refuses to let you violate. Promoting an entry to `constraint` requires an enforcement target: a pre-tool-use hook, system-reminder injection, lint rule, or evaluator criterion. Descriptive-only entries stay at `note` and decay.
 
 ## The store
 
 ```
 /memories/priors/
-  HEAD.md              # cold-start orientation — read first, every session
-  operator.yaml        # who's working on this project, as of when
-  state.json           # live pointers — branch, active feature, open PRs
-  index.json           # machine index of active entries
-  entries/             # typed YAML, one file per entry, date-prefixed
-  compiled/            # Phase 3 — regenerated human view + hook reminders
-  archive/             # retired entries
+  HEAD.md              cold-start orientation
+  operator.yaml        who's working on this project, as of when
+  state.json           live pointers: branch, active feature, open PRs
+  index.json           machine index of active entries
+  contradictions.json  first-class disagreement records
+  entries/             typed YAML, date-prefixed, one file per entry
+  compiled/            regenerated human view + hook reminders
+  archive/             retired entries
 ```
 
-Directory-backed, not a DB. On purpose: portable, git-friendly,
-grep-friendly, diff-friendly, survives tool migrations. You can open
-`/memories/priors/` and understand what's going on in under a minute
-without running the tool.
+Directory-backed. Portable, git-friendly, grep-friendly, diff-friendly. Open the directory and understand the project in under a minute without running the tool.
 
-The format _is_ the abstraction. Any agent that speaks `memory_20250818`
-and respects the typed entries shares the sediment. No orchestration
-primitives. Coordination-free multi-agent, because the format is the
-coordination.
+The format is the contract. Any agent that speaks `memory_20250818`-compatible file I/O and respects the typed entries shares the same sediment. Coordination-free multi-agent, because the format carries the coordination.
 
----
+## How it works
+
+**Capture.** `/priors-log` writes one typed entry. `/priors-distill` runs a sub-agent over the session transcript and proposes entries as a reviewable diff. Nothing auto-writes.
+
+**Curate.** `/priors-promote` moves an entry up the tier ladder: `raw` → `structured` → `constraint`. Promotion to `constraint` passes the back-pressure gate. `/priors-contradict` records a disagreement between two entries and prompts for a supersede / coexist / revert stance. Helpful and contradicted counters accumulate as entries get cited or disputed, and feed the compile step's ranking.
+
+**Compile.** `/priors-compile` regenerates two files from the typed store, deterministically. `compiled/harness-reminders.md` hook-injects at cold-start, under 500 tokens. `compiled/narrative.md` reads as a project autobiography structured temporal, causal, and thematic. Diff-reviewable. Never auto-applied.
+
+**Enforce.** `/priors-enforce-on` wires two hooks. `PreToolUse` warns or blocks on matching Edit and Write calls. `UserPromptSubmit` injects topical reminders on matched prompts. Lint rules and evaluator criteria emit as diffs for external consumption. Off by default.
+
+**Share.** `/priors-export` writes the store to any directory. `FORMAT.md` specifies the schema, versioning, and lifecycle operations. A conformance suite verifies a new implementation.
 
 ## Install
 
-Copy the `.claude/` directory into a project (or symlink, or vendor it
-however you prefer). Then:
+Copy `.claude/` into a project. Run:
 
-```
-/priors-init
-```
+    /priors-init
 
-That bootstraps `/memories/priors/`, interviews you briefly for the
-operator context, and writes `HEAD.md`. After that, every fresh Claude
-Code session in the project cold-starts from the priors automatically —
-no CLAUDE.md bloat, no ambient per-prompt tokens, just one reminder at
-session start pointing the agent at the store.
+priors interviews you briefly for operator context, writes `HEAD.md`, and bootstraps the store. Every fresh Claude Code session in the project cold-starts from the priors automatically. No CLAUDE.md bloat. No ambient per-prompt tokens.
 
----
+## Commands
 
-## Commands (Phase 1)
+| Command | What it does |
+| --- | --- |
+| `/priors-init` | Bootstrap the store, interview for operator context |
+| `/priors-log` | Write one typed entry |
+| `/priors-distill` | Sub-agent proposes entries from the session transcript |
+| `/priors-recall <query>` | Search by tag, type, substring, or file path |
+| `/priors-promote <id> --to <tier>` | Move an entry up or down the tier ladder |
+| `/priors-contradict <new> <old>` | Record a disagreement with a resolution stance |
+| `/priors-compile` | Regenerate `narrative.md` and `harness-reminders.md` |
+| `/priors-emit <id>` | Emit a constraint's enforcement artifact |
+| `/priors-export <path>` | Write the store to an external directory |
+| `/priors-state` | Refresh `state.json` from the working tree |
+| `/priors-index` | Regenerate `index.json` |
+| `/priors-matcher-test <id>` | Dry-run a constraint's matcher against a synthetic tool call |
+| `/priors-auto-on` | Enable per-prompt operator injection |
+| `/priors-enforce-on` | Wire `PreToolUse` + system-reminder enforcement |
 
-| Command                  | What it does                                             |
-| ------------------------ | -------------------------------------------------------- |
-| `/priors-init`           | Bootstrap the store; interview for operator context      |
-| `/priors-log`            | Write one typed entry for work that just happened        |
-| `/priors-recall <query>` | Search by tag, type, substring, or file path             |
-| `/priors-state`          | Refresh `state.json` from the working tree               |
-| `/priors-index`          | Regenerate `index.json` (after manual entry edits)       |
-| `/priors-auto-on`        | Opt into per-prompt operator injection (~200 tok/prompt) |
-| `/priors-auto-off`       | Revert to cold-start-only                                |
+Every opt-in has a matching opt-out.
 
-Token budget is load-bearing. **Default posture: zero ambient per-prompt
-cost.** The cold-start hook fires once per session and reads three small
-files. Everything else is user-invoked or explicit opt-in. If a future
-phase adds an always-on surface, it either fits inside the cold-start
-budget or ships as opt-in.
+## Token budget
 
----
+Zero ambient per-prompt cost by default. The `SessionStart` hook fires once per session and loads three small files. Distill, promote, compile, and export run user-invoked. Operator injection and enforcement are explicit opt-ins that document their cost at the point of opting in. Any always-on surface either fits inside the cold-start budget or ships off by default.
 
-## What it does not do yet
+## Commitments
 
-(but will),
-
-- **No automatic distillation.** `/priors-distill` is stubbed. Phase 2
-  runs a sub-agent over session transcripts and proposes typed entries
-  as a reviewable diff — never auto-write.
-- **No compilation.** Phase 3 regenerates `compiled/narrative.md` (human
-  view) and `compiled/harness-reminders.md` (hook-injected) from the
-  typed store, deterministically. Both emit as reviewable diffs, never
-  auto-applied. No auto-generated CLAUDE.md — humanlayer documented that
-  class of bloat as an active performance regression; `priors` avoids it
-  on purpose.
-- **No enforcement surface.** Phase 4 emits pre-tool-use hooks,
-  system-reminders, and evaluator criteria from promoted constraints.
-- **No schema validation at write time.** The schema is a template file
-  the agent reads when creating entries. Phase 2 adds validation.
-
----
-
-## What it does not intend to do
-
-- **No hand-authored human narrative.** The machine store is canonical;
-  the human view is compiled. `compiled/narrative.md` is output only —
-  never cited as source for a new entry, because reflection-echo loops
-  drift.
-- **No silent overwrites on contradiction.** Contradictions are
-  first-class objects. Both entries preserved; the disagreement is
-  queryable.
-- **No constraints without back-pressure targets.** A rule the agent can
-  ignore is not a rule.
-- **No timeless user-belief storage.** Every entry has `valid_from` /
-  `valid_through`. Retrieval treats entries as "as-of" records. The
-  AI Index 2026 data on belief-vs-fact vulnerability (DeepSeek R1
-  dropping from 90%+ to 14.4% on false-user-belief framing) is a design
-  constraint, not a footnote.
-- **No model-specific coupling.** The format is tool-agnostic. Claude
-  Code is the reference implementation; the format should outlive it.
-
----
-
-## Success criterion
-
-If, in six months, a fresh Claude Code session given only a project's
-priors (no conversation history) can predict what would get accepted or
-rejected in that project on held-out cases — proposed changes, framings,
-approaches — the format is doing its job. Project shape is inherited,
-not told.
-
-That's the test. Not retrieval accuracy. Not adoption count. Trajectory
-legibility.
-
----
-
-## Where to look
-
-- [`.claude/skills/priors/SKILL.md`](.claude/skills/priors/SKILL.md) — the
-  instruction layer Claude loads contextually
-- [`.claude/commands/`](.claude/commands/) — one file per slash command,
-  self-documenting
-- [`.claude/hooks/`](.claude/hooks/) — cold-start orientation + optional
-  per-prompt operator injection
-- [`.claude/settings.json`](.claude/settings.json) — ships the
-  `SessionStart` hook registration. Personal permissions/MCP live in
-  the gitignored `settings.local.json`.
-
----
+- The machine store is canonical. The human-readable narrative regenerates from entries, never hand-authored.
+- Contradictions are never silent overwrites. Both entries preserved. The disagreement is queryable.
+- Constraints require back-pressure targets. A rule the agent can ignore is not a rule.
+- Entries carry `valid_from` and `valid_through`. Retrieval treats them as "as-of" records. The AI Index 2026 finding on belief-vs-fact vulnerability (DeepSeek R1 dropping from 90%+ to 14.4% accuracy on false-user-belief framing) is a design constraint.
+- No model-specific coupling. Claude Code is the reference implementation. The format stands on its own.
+- No auto-generated CLAUDE.md. humanlayer documented that class of bloat as a performance regression.
+- No vector / embedding retrieval. Retrieval-by-similarity is what ACE and ReasoningBank improved over. Going back is a regression dressed up as sophistication.
 
 ## Lineage
 
-Reflexion (2023) → Dynamic Cheatsheet (Apr 2025) → ACE (Oct 2025) →
-ReasoningBank (NeurIPS 2026).
+Reflexion (2023) → Dynamic Cheatsheet (Apr 2025) → ACE (Oct 2025) → ReasoningBank (NeurIPS 2026).
 
-Three convictions appear in every serious piece of work in this lineage:
+Three convictions run through this research:
 
-1. **Compression loses signal you can't predict at capture time.**
-   Preserve detail; let the model filter at read time. (ACE)
-2. **Failures are more valuable than successes for learning.** Most
-   systems don't capture them. (ReasoningBank)
-3. **Curation is the product.** Storage and retrieval are solved. What
-   to keep, what to promote, what to decay — that's where differentiation
-   lives.
+1. Compression loses signal you can't predict at capture time. Preserve detail, filter at read time. (ACE)
+2. Failures teach better than successes. Most systems don't capture them. (ReasoningBank)
+3. Curation is the product. Storage and retrieval are commodities. What to keep, what to promote, what to decay is where differentiation lives.
 
-Closest precedents and what they don't do: claude-mem captures episodes
-but doesn't emit harness artifacts. Karpathy's LLM Wiki compiles
-knowledge but is read-only — it doesn't modify the environment.
-Anthropic's `/team-onboarding` is a narrow first-party slice of
-"compile local usage into shareable output" — user-scoped, not
-decision-scoped. Mercury's Second Brain is personal-scoped, not
-project-scoped, and has no typed curation.
+Closest precedents: claude-mem captures episodes, emits no harness artifacts. Karpathy's LLM Wiki compiles knowledge, stays read-only, doesn't modify the environment. Anthropic's `/team-onboarding` is user-scoped, not decision-scoped. Mercury Second Brain is personal-scoped with no typed curation.
 
-`priors` sits downstream of all of these. The thing it does that none
-of them do: **emit harness artifacts from curated typed entries so that
-the environment enforces the lesson, not the agent's memory.**
+The move none of them make: emit harness artifacts from curated typed entries so the environment carries the enforcement.
 
----
+## The test
 
-## License
+A fresh Claude Code session given only a project's priors, no conversation history, predicts what the project accepts or rejects on held-out proposals. Project shape inherited.
 
-TBD.
+Trajectory legibility is the measure.
