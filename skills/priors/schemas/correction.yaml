@@ -1,0 +1,15 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: priors://schemas/correction
+title: correction — agent got something wrong
+allOf:
+  - $ref: ./_base.yaml
+  - type: object
+    required: [symptom, wrong_approach, correct_approach, why, detection]
+    properties:
+      type:
+        const: correction
+      symptom: { type: string, minLength: 1 }
+      wrong_approach: { type: string, minLength: 1 }
+      correct_approach: { type: string, minLength: 1 }
+      why: { type: string, minLength: 1 }
+      detection: { type: string, minLength: 1 }

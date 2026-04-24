@@ -1,11 +1,18 @@
 ---
-description: Update /memories/priors/state.json with live harness pointers — current branch, active feature, open PRs, known-broken list.
+description: Update the priors state.json with live harness pointers — current branch, active feature, open PRs, known-broken list.
 ---
 
-# /priors-state
+# /priors:state
 
 Refresh `state.json` from the working tree. Narrow scope: things that are
 true *right now* about the codebase.
+
+## Store path
+
+```bash
+slug="$(pwd | sed 's|/|-|g')"
+store="$HOME/.claude/projects/$slug/priors"
+```
 
 ## What goes in state.json
 
@@ -27,8 +34,8 @@ a direct context tax.
 
 ## Update procedure
 
-1. `memory.view /memories/priors/state.json` to read current state.
-2. Collect fresh values:
+1. Read `$store/state.json` to see the current state.
+2. Collect fresh values via Bash:
    - `active_branch`: `git rev-parse --abbrev-ref HEAD 2>/dev/null`
    - `last_known_good_commit`: ask the user OR default to current HEAD.
      *Do not silently assume HEAD builds.* If unsure, keep the existing
@@ -41,12 +48,12 @@ a direct context tax.
    - `known_broken`: user-managed. Don't touch unless they tell you to
      add/remove something.
 3. Show the proposed diff.
-4. On approval, write via `memory.create` (overwrite) or
-   `memory.str_replace` for targeted edits.
+4. On approval, Write `$store/state.json` (overwrite). Get the timestamp
+   from `TZ=Australia/Perth date -Iseconds`.
 
 ## When to run
 
-- User explicitly asks ("update state", "refresh state", "/priors-state").
+- User explicitly asks ("update state", "refresh state", "/priors:state").
 - At the start of a new feature or after a branch switch, if the state
   file is clearly stale (active_branch doesn't match current).
 - Do NOT auto-run this on every prompt or edit. That thrashes the file

@@ -2,7 +2,9 @@
 
 > A project's trajectory becomes legible to future agents as causality, not as retrieval.
 
-priors is a typed, project-scoped dataset of the decisions, corrections, constraints, dead-ends, and patterns that accrue across coding sessions. Directory-backed, tool-agnostic, zero ambient per-prompt cost. Future agents inherit the project's shape without being told.
+priors is a typed, project-scoped dataset of the decisions, corrections, constraints, dead-ends, and patterns that accrue across coding sessions. Directory-backed, zero ambient per-prompt cost. Future agents inherit the project's shape without being told.
+
+Ships as a Claude Code plugin. The store lives in your `~/.claude/projects/<slug>/priors/` (agent-side, outside your repo — `git status` stays clean). The format is plain YAML + JSON + Markdown, so cross-model adapters can consume the same store later.
 
 ## The inversion
 
@@ -23,61 +25,67 @@ Three gaps run through the research (ACE, ReasoningBank, Anthropic's harness-des
 ## The store
 
 ```
-/memories/priors/
+~/.claude/projects/<slug>/priors/
   HEAD.md              cold-start orientation
   operator.yaml        who's working on this project, as of when
   state.json           live pointers: branch, active feature, open PRs
   index.json           machine index of active entries
-  contradictions.json  first-class disagreement records
   entries/             typed YAML, date-prefixed, one file per entry
-  compiled/            regenerated human view + hook reminders
+  compiled/            regenerated human view + hook reminders (Phase 3)
   archive/             retired entries
 ```
 
 Directory-backed. Portable, git-friendly, grep-friendly, diff-friendly. Open the directory and understand the project in under a minute without running the tool.
 
-The format is the contract. Any agent that speaks `memory_20250818`-compatible file I/O and respects the typed entries shares the same sediment. Coordination-free multi-agent, because the format carries the coordination.
-
-## How it works
-
-**Capture.** `/priors-log` writes one typed entry. `/priors-distill` runs a sub-agent over the session transcript and proposes entries as a reviewable diff. Nothing auto-writes.
-
-**Curate.** `/priors-promote` moves an entry up the tier ladder: `raw` → `structured` → `constraint`. Promotion to `constraint` passes the back-pressure gate. `/priors-contradict` records a disagreement between two entries and prompts for a supersede / coexist / revert stance. Helpful and contradicted counters accumulate as entries get cited or disputed, and feed the compile step's ranking.
-
-**Compile.** `/priors-compile` regenerates two files from the typed store, deterministically. `compiled/harness-reminders.md` hook-injects at cold-start, under 500 tokens. `compiled/narrative.md` reads as a project autobiography structured temporal, causal, and thematic. Diff-reviewable. Never auto-applied.
-
-**Enforce.** `/priors-enforce-on` wires two hooks. `PreToolUse` warns or blocks on matching Edit and Write calls. `UserPromptSubmit` injects topical reminders on matched prompts. Lint rules and evaluator criteria emit as diffs for external consumption. Off by default.
-
-**Share.** `/priors-export` writes the store to any directory. `FORMAT.md` specifies the schema, versioning, and lifecycle operations. A conformance suite verifies a new implementation.
+The format is the contract: plain YAML entries + JSON index + Markdown orientation. The plugin is one implementation surface; anything that can read a file can consume the same sediment.
 
 ## Install
 
-Copy `.claude/` into a project. Run:
+As a Claude Code plugin:
 
-    /priors-init
+```bash
+# Local testing against a clone of this repo:
+claude --plugin-dir /path/to/priors
 
-priors interviews you briefly for operator context, writes `HEAD.md`, and bootstraps the store. Every fresh Claude Code session in the project cold-starts from the priors automatically. No CLAUDE.md bloat. No ambient per-prompt tokens.
+# Once published to a marketplace:
+/plugin install priors
+```
 
-## Commands
+Inside Claude Code, run:
+
+```
+/priors:init
+```
+
+priors interviews you briefly for operator context, writes `HEAD.md`, and bootstraps the store. Every fresh Claude Code session in the project cold-starts from the priors automatically. No CLAUDE.md bloat. No ambient per-prompt tokens. Nothing added to your repo.
+
+## Phase 1 commands
 
 | Command | What it does |
 | --- | --- |
-| `/priors-init` | Bootstrap the store, interview for operator context |
-| `/priors-log` | Write one typed entry |
-| `/priors-distill` | Sub-agent proposes entries from the session transcript |
-| `/priors-recall <query>` | Search by tag, type, substring, or file path |
-| `/priors-promote <id> --to <tier>` | Move an entry up or down the tier ladder |
-| `/priors-contradict <new> <old>` | Record a disagreement with a resolution stance |
-| `/priors-compile` | Regenerate `narrative.md` and `harness-reminders.md` |
-| `/priors-emit <id>` | Emit a constraint's enforcement artifact |
-| `/priors-export <path>` | Write the store to an external directory |
-| `/priors-state` | Refresh `state.json` from the working tree |
-| `/priors-index` | Regenerate `index.json` |
-| `/priors-matcher-test <id>` | Dry-run a constraint's matcher against a synthetic tool call |
-| `/priors-auto-on` | Enable per-prompt operator injection |
-| `/priors-enforce-on` | Wire `PreToolUse` + system-reminder enforcement |
+| `/priors:init` | Bootstrap the store, interview for operator context |
+| `/priors:log` | Write one typed entry (correction, decision, dead-end, pattern, open-question) |
+| `/priors:recall <query>` | Search by tag, type, substring, or file path |
+| `/priors:index` | Regenerate `index.json` from `entries/` |
+| `/priors:state` | Refresh `state.json` from the working tree |
+| `/priors:health` | Audit the store for stale, low-use, contradicted, duplicate entries |
+| `/priors:auto-on` | Enable per-prompt operator injection (opt-in, default off) |
+| `/priors:auto-off` | Disable per-prompt operator injection |
+| `/priors:distill` | (Phase 2, stubbed) Sub-agent proposes entries from the session transcript |
 
 Every opt-in has a matching opt-out.
+
+## Phase 2+ (roadmap, not shipping)
+
+- `/priors:promote <id> --to <tier>` — move an entry up or down the tier ladder
+- `/priors:contradict <new> <old>` — record a disagreement with a supersede / coexist / revert stance
+- `/priors:compile` — regenerate `narrative.md` and `harness-reminders.md` deterministically
+- `/priors:emit <id>` — emit a constraint's enforcement artifact (pre-tool-use hook, lint rule, evaluator criterion)
+- `/priors:export <path>` — write the store to an external directory
+- `/priors:matcher-test <id>` — dry-run a constraint's matcher against a synthetic tool call
+- `/priors:enforce-on` — wire `PreToolUse` + system-reminder enforcement
+
+Specced in `internal/phase-2-spec.md` through `phase-5-spec.md`. Phase 1 (capture + retrieve) ships first; later phases gate on each previous phase proving value.
 
 ## Token budget
 
@@ -89,7 +97,7 @@ Zero ambient per-prompt cost by default. The `SessionStart` hook fires once per 
 - Contradictions are never silent overwrites. Both entries preserved. The disagreement is queryable.
 - Constraints require back-pressure targets. A rule the agent can ignore is not a rule.
 - Entries carry `valid_from` and `valid_through`. Retrieval treats them as "as-of" records. The AI Index 2026 finding on belief-vs-fact vulnerability (DeepSeek R1 dropping from 90%+ to 14.4% accuracy on false-user-belief framing) is a design constraint.
-- No model-specific coupling. Claude Code is the reference implementation. The format stands on its own.
+- Store format is plain files (YAML / JSON / Markdown). Claude Code is the reference implementation; future adapters for Codex / Cursor / etc. read the same sediment.
 - No auto-generated CLAUDE.md. humanlayer documented that class of bloat as a performance regression.
 - No vector / embedding retrieval. Retrieval-by-similarity is what ACE and ReasoningBank improved over. Going back is a regression dressed up as sophistication.
 
