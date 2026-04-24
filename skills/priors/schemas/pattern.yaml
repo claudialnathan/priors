@@ -1,0 +1,16 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: priors://schemas/pattern
+title: pattern — proven approach, not a hard rule
+allOf:
+  - $ref: ./_base.yaml
+  - type: object
+    required: [situation, approach, why_it_works]
+    properties:
+      type:
+        const: pattern
+      situation: { type: string, minLength: 1 }
+      approach: { type: string, minLength: 1 }
+      why_it_works: { type: string, minLength: 1 }
+      counter_examples:
+        type: array
+        items: { type: string }

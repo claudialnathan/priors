@@ -1,0 +1,31 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: priors://schemas/constraint
+title: constraint — a rule that should be enforced mechanically
+allOf:
+  - $ref: ./_base.yaml
+  - type: object
+    required: [rule, enforcement, applies_when, derived_from, why]
+    properties:
+      type:
+        const: constraint
+      rule: { type: string, minLength: 1 }
+      enforcement:
+        type: object
+        required: [type, matcher, condition, message]
+        properties:
+          type:
+            enum: [pre-tool-use, system-reminder, lint, evaluator-criterion]
+          matcher: { type: string }
+          condition: { type: string }
+          message: { type: string, minLength: 1 }
+      applies_when:
+        type: object
+        properties:
+          paths:
+            type: array
+            items: { type: string }
+          tags:
+            type: array
+            items: { type: string }
+      derived_from: { type: string }
+      why: { type: string }

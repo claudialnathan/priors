@@ -1,0 +1,8 @@
+{
+  "name": "priors",
+  "description": "Project-scoped harness memory for Claude Code. A typed, file-backed trajectory dataset — decisions, corrections, constraints, dead-ends, operator context — that persists across context resets. Primary use case: cold-start handoff.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Claudia Nathan"
+  }
+}

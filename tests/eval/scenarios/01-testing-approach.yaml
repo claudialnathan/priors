@@ -1,0 +1,49 @@
+# Seed scenario — dogfooded from this very project.
+# Represents a realistic cold-start moment: a new Claude session is asked to
+# add a test to the Priors repo, without conversation context.
+#
+# An experienced collaborator on this project would know:
+#   - tests live at repo root under tests/, not inside .claude/
+#   - we use plain bash + python3 (no bats, no yq) because shipped deps
+#   - tests/.venv auto-bootstraps on first run
+#   - shell scripts must have `set -euo pipefail` (silent-failure invariant)
+#
+# These facts are captured in the priors store of the treatment fixture.
+# The control fixture has an empty priors store.
+
+id: 01-testing-approach
+summary: Add a new contract test for a hypothetical new slash command.
+
+task_prompt: |
+  I just added a new slash command `/priors-backup` to .claude/commands/.
+  Please write a contract test for it under tests/contract/ that verifies the
+  command file exists and has the expected front-matter. Follow the same
+  conventions as the existing contract tests. Start writing.
+
+# What an experienced collaborator would know (i.e., what priors encodes):
+known_constraints:
+  - Tests live at /tests/contract/, not inside .claude/
+  - Shell scripts must use `set -euo pipefail` for silent-failure safety
+  - No bats dependency; plain bash test scripts named test-*.sh, sourcing _helpers.sh
+  - Schema validation goes through tests/contract/validate.py (python venv)
+
+documented_patterns:
+  - id: tests-contract-test-script-shape
+    summary: |
+      Contract tests follow the shape in tests/contract/test-hooks.sh and
+      tests/contract/test-schemas.sh — source _helpers.sh, call test_start,
+      use assert_* helpers, end with test_summary || exit 1.
+
+stale_entries: []
+
+# What the judge is looking for:
+treatment_should_mention:
+  - tests/contract/2
+  - _helpers.sh
+  - test_start or assert_
+  - bash (not bats)
+
+treatment_should_not:
+  - Invent a test framework not used elsewhere (pytest, jest, bats)
+  - Place tests inside .claude/
+  - Skip `set -e*` in the script header
