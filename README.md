@@ -26,10 +26,11 @@ Three gaps run through the research (ACE, ReasoningBank, Anthropic's harness-des
 
 ```
 ~/.claude/projects/<slug>/priors/
-  HEAD.md              cold-start orientation
+  HEAD.md              cold-start orientation — bullets with [source] tags, 60-line cap
   operator.yaml        who's working on this project, as of when
-  state.json           live pointers: branch, active feature, open PRs
+  state.json           live pointers + inferred_signals_hash (drift-detection primitive)
   index.json           machine index of active entries
+  contradictions.json  first-class contradictions (Phase 2 populates)
   entries/             typed YAML, date-prefixed, one file per entry
   compiled/            regenerated human view + hook reminders (Phase 3)
   archive/             retired entries
@@ -57,13 +58,19 @@ Inside Claude Code, run:
 /priors:init
 ```
 
-priors interviews you briefly for operator context, writes `HEAD.md`, and bootstraps the store. Every fresh Claude Code session in the project cold-starts from the priors automatically. No CLAUDE.md bloat. No ambient per-prompt tokens. Nothing added to your repo.
+On an existing codebase, priors reads what the repo can tell it — stack, CI, back-pressure targets (pre-commit hooks, lint configs, typecheck, CI workflows) — and presents the inferences with `[source]` tags you can accept, edit, or skip per line. Two questions cover what the repo can't tell (hard constraints not in CI, dead-ends you've already learned). No questions about preferences, thinking style, or goals; those are not capturable as timeless facts and are off-product by design.
+
+On a fresh repo, priors asks three project-shape questions instead — what you're building, what "working" looks like, any constraint that must hold — and leaves the rest to accrue.
+
+Either way, `entries/` starts empty. Entries land through real work via `/priors:log` and (Phase 2) `/priors:distill`, not through an interview at init time.
+
+Every fresh Claude Code session in the project cold-starts from the priors automatically. No CLAUDE.md bloat. No ambient per-prompt tokens. Nothing added to your repo.
 
 ## Phase 1 commands
 
 | Command | What it does |
 | --- | --- |
-| `/priors:init` | Bootstrap the store, interview for operator context |
+| `/priors:init` | Bootstrap the store. Inference-first on an existing codebase; three project-shape questions on a fresh repo |
 | `/priors:log` | Write one typed entry (correction, decision, dead-end, pattern, open-question) |
 | `/priors:recall <query>` | Search by tag, type, substring, or file path |
 | `/priors:index` | Regenerate `index.json` from `entries/` |
@@ -72,6 +79,7 @@ priors interviews you briefly for operator context, writes `HEAD.md`, and bootst
 | `/priors:auto-on` | Enable per-prompt operator injection (opt-in, default off) |
 | `/priors:auto-off` | Disable per-prompt operator injection |
 | `/priors:distill` | (Phase 2, stubbed) Sub-agent proposes entries from the session transcript |
+| `/priors:reconcile` | (Phase 2, stubbed) Re-run inference, surface drift against what `HEAD.md` recorded at init |
 
 Every opt-in has a matching opt-out.
 
@@ -97,6 +105,7 @@ Zero ambient per-prompt cost by default. The `SessionStart` hook fires once per 
 - Contradictions are never silent overwrites. Both entries preserved. The disagreement is queryable.
 - Constraints require back-pressure targets. A rule the agent can ignore is not a rule.
 - Entries carry `valid_from` and `valid_through`. Retrieval treats them as "as-of" records. The AI Index 2026 finding on belief-vs-fact vulnerability (DeepSeek R1 dropping from 90%+ to 14.4% accuracy on false-user-belief framing) is a design constraint.
+- Operator context at init is minimal: `as_of`, role if volunteered, detected back-pressure targets, optional verbatim quotes. Paraphrased preference / thinking-style / goals arrays are refused by design — same belief-vs-fact constraint. Operator attributes accrue from real sessions via `/priors:distill`, not from an interview before any work has happened.
 - Store format is plain files (YAML / JSON / Markdown). Claude Code is the reference implementation; future adapters for Codex / Cursor / etc. read the same sediment.
 - No auto-generated CLAUDE.md. humanlayer documented that class of bloat as a performance regression.
 - No vector / embedding retrieval. Retrieval-by-similarity is what ACE and ReasoningBank improved over. Going back is a regression dressed up as sophistication.
