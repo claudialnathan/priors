@@ -6,17 +6,19 @@ priors is a typed, project-scoped dataset of the decisions, corrections, constra
 
 Ships as a Claude Code plugin. The store lives in your `~/.claude/projects/<slug>/priors/` (agent-side, outside your repo — `git status` stays clean). The format is plain YAML + JSON + Markdown, so cross-model adapters can consume the same store later.
 
+Bootstraps from repo inference where possible. Interviews only what the repo can't answer, with at most three questions on a fresh project.
+
 ## The inversion
 
-Most agent-memory work treats the agent as protagonist and memory as infrastructure the agent uses. priors inverts that. The project's trajectory is primary. Agents are transient participants. Sediment persists; agents come and go against it.
+Most agent-memory work treats the agent as protagonist and memory as infrastructure the agent uses and priors inverts that. The project's trajectory is primary. Agents are transient participants. The sedimentation of the overall project trajectory persists and your agents come and go against it.
 
 Agent-primary tools optimise for a smarter, more capable agent. Trajectory-primary tools optimise for the project developing legible shape, a stance future agents inherit without being told. Different products, different features.
 
 ## What it fixes
 
-Three gaps run through the research (ACE, ReasoningBank, Anthropic's harness-design-for-long-running-apps piece, humanlayer's CLAUDE.md critique). priors closes all three.
+Three gaps run through the research.
 
-**Untyped free-text loses causality.** "We chose X" records the outcome and loses the structure. Six months later you can't ask what else was considered or when we'd revisit. priors ships typed entries (`correction`, `decision`, `dead-end`, `pattern`, `constraint`, `open-question`) plus a rolling `operator.yaml` for the person-in-project context. Each type carries its own schema. You can ask what was decided, what was rejected, under what conditions we'd revisit.
+**Untyped free-text loses causality.** "We chose X" records the outcome and loses the structure. Six months later you can't ask what else was considered or when we'd revisit. priors ships typed entries (`correction`, `decision`, `dead-end`, `pattern`, `constraint`, `open-question`), each with its own schema. You can ask what was decided, what was rejected, under what conditions we'd revisit. A companion `operator.yaml` holds the narrow slice of project-scoped operator facts that are directly observable — role in this project, known back-pressure targets, explicit hard constraints. Preferences, working-style, strengths, goals stay out of Phase 1 entirely; those are user-belief framings that break model accuracy under the belief-vs-fact vulnerability documented in AI Index 2026, and they accrue from evidence via `/priors-distill`, never from interview.
 
 **Contradictions silently overwrite.** Most stores append or overwrite when a new learning conflicts with an old one. The disagreement is the signal. priors keeps both entries and emits the contradiction as a first-class record with a supersede / coexist / revert resolution. `supersedes` and `superseded_by` form a bidirectional graph. Old layers keep their shape after they stop being current.
 
@@ -68,18 +70,18 @@ Every fresh Claude Code session in the project cold-starts from the priors autom
 
 ## Phase 1 commands
 
-| Command | What it does |
-| --- | --- |
-| `/priors:init` | Bootstrap the store. Inference-first on an existing codebase; three project-shape questions on a fresh repo |
-| `/priors:log` | Write one typed entry (correction, decision, dead-end, pattern, open-question) |
-| `/priors:recall <query>` | Search by tag, type, substring, or file path |
-| `/priors:index` | Regenerate `index.json` from `entries/` |
-| `/priors:state` | Refresh `state.json` from the working tree |
-| `/priors:health` | Audit the store for stale, low-use, contradicted, duplicate entries |
-| `/priors:auto-on` | Enable per-prompt operator injection (opt-in, default off) |
-| `/priors:auto-off` | Disable per-prompt operator injection |
-| `/priors:distill` | (Phase 2, stubbed) Sub-agent proposes entries from the session transcript |
-| `/priors:reconcile` | (Phase 2, stubbed) Re-run inference, surface drift against what `HEAD.md` recorded at init |
+| Command                  | What it does                                                                                                |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `/priors:init`           | Bootstrap the store. Inference-first on an existing codebase; three project-shape questions on a fresh repo |
+| `/priors:log`            | Write one typed entry (correction, decision, dead-end, pattern, open-question)                              |
+| `/priors:recall <query>` | Search by tag, type, substring, or file path                                                                |
+| `/priors:index`          | Regenerate `index.json` from `entries/`                                                                     |
+| `/priors:state`          | Refresh `state.json` from the working tree                                                                  |
+| `/priors:health`         | Audit the store for stale, low-use, contradicted, duplicate entries                                         |
+| `/priors:auto-on`        | Enable per-prompt operator injection (opt-in, default off)                                                  |
+| `/priors:auto-off`       | Disable per-prompt operator injection                                                                       |
+| `/priors:distill`        | (Phase 2, stubbed) Sub-agent proposes entries from the session transcript                                   |
+| `/priors:reconcile`      | (Phase 2, stubbed) Re-run inference, surface drift against what `HEAD.md` recorded at init                  |
 
 Every opt-in has a matching opt-out.
 
