@@ -1,27 +1,34 @@
-# Priors test suite
+# Priors Test Suite
 
-One contract test, run via `make test`.
+Run the full active suite with:
 
+```bash
+make test
 ```
+
+Active tests:
+
+```text
 tests/
-  contract/
-    test-hooks.sh    # audits the two Phase 1 hooks — silent-failure guard,
-                     # correct path, correct tag shape, 5-preference cap
+  mcp/
+    run-tests.mjs
 ```
 
-## Invariants the hook test guards
+## MCP Invariants
 
-- Both hooks `set -e*` — no swallowed errors.
-- `session-start.sh` emits `<priors-cold-start>` pointing at
-  `~/.claude/projects/<slug>/priors/` (the new project-scoped path —
-  the SDK `memory.view` / `/memories/` idiom is a regression).
-- `user-prompt-submit.sh` exits silently when `operator.yaml` is absent
-  (no nagging on every prompt) and caps preference injection at 5 bullets
-  when present (token economy).
+- `initialize`, `tools/list`, `resources/list`, and `prompts/list` work over stdio JSON-RPC.
+- Every MCP tool exposes an input schema and output schema.
+- Tool calls return structured content plus text content.
+- `priors.init` creates a vendor-neutral store under `~/.priors`.
+- `priors.writeEntry` validates, commits, regenerates `index.json`, and records audit events.
+- `priors.recall` skips low-uncertainty reads unless forced and reports decay metadata.
+- `priors.reinforce` only rewards helpful entries when the response succeeded.
+- `priors.distill` stages actionable trajectory proposals and `priors.verifyProposals` checks transcript evidence.
+- `priors.commitProposals` refuses low-confidence commits unless the risk token is present.
+- `priors.emitConstraint` and `priors.applyEmission` only write allowlisted artifacts.
+- Resource reads reject path-traversal entry IDs.
+- `init-config --dry-run` pins the local Node executable instead of generating `npx` configs.
 
-## What this suite deliberately does NOT cover
+## Reference Material
 
-Schema validation, live-store integrity, and transcript simulation are
-all deferred. Phase 1 ships a scaffold; the value question is answered
-by using the plugin manually, not by LLM-judged eval harnesses. See
-`internal/phase-1-spec.md` for the shipping criterion.
+The old Claude plugin hook tests, eval scenarios, and fixtures were moved into the ignored `.reference/` folder. They are available locally as migration context, but they are no longer part of the active repository surface.

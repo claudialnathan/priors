@@ -1,12 +1,10 @@
-# Priors — Phase 1.
-#
-# One test: audits the two hook scripts. See tests/README.md.
+# Priors — MCP-first.
 
 .PHONY: test help
 
 help:
-	@echo "Priors — Phase 1 test targets:"
-	@echo "  make test   — audit hook scripts (silent-failure guard, path, shape)"
+	@echo "Priors test targets:"
+	@echo "  make test   — run MCP protocol/security tests"
 
 test:
-	@bash tests/contract/test-hooks.sh
+	@node tests/mcp/run-tests.mjs

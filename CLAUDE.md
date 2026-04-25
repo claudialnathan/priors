@@ -1,85 +1,135 @@
 # CLAUDE.md
 
-This repo contains **Priors** — a project-scoped harness memory tool that ships as a Claude Code plugin.
+This repo contains **Priors**: an MCP-first, project-scoped harness memory tool.
 
-## What it does
+## Current architecture
 
-Priors gives a Claude Code project a typed, file-backed trajectory dataset — a structured record of decisions, constraints, patterns, and dead-ends that persists across context resets. The primary use case is cold-start handoff: a fresh agent reads the priors store and becomes productive without replaying conversation history.
+Priors now ships primarily as a standalone stdio MCP server:
 
-## Store location
-
-The store lives outside the user's repo, at a project-scoped path under Claude Code's own per-project data directory:
-
-```
-~/.claude/projects/<slug>/priors/
+```text
+bin/priors-mcp.js        # executable wrapper
+src/priors-mcp.ts        # dependency-free MCP server/runtime
+AGENTS.md                # client-neutral agent instructions
 ```
 
-where `<slug>` is cwd with `/` replaced by `-`. This keeps `git status` clean and coexists alongside Claude Code's session logs and auto-memory for the same project.
+The canonical store lives outside user repos:
 
-## Plugin layout
-
-The repo itself is the plugin. Standard Claude Code plugin structure:
-
-```
-.claude-plugin/
-  plugin.json                     # manifest (name: priors, version, author)
-skills/
-  priors/
-    SKILL.md                      # instruction layer, loaded contextually
-    schemas/                      # 7 entry schemas (reference material)
-commands/
-  init.md                         # /priors:init      — bootstrap (dispatches existing vs fresh; no operator interview)
-  log.md                          # /priors:log       — force-write a typed entry
-  index.md                        # /priors:index     — regenerate index.json
-  recall.md                       # /priors:recall    — search by tag/type/substring
-  state.md                        # /priors:state     — sync state.json to working tree
-  health.md                       # /priors:health    — audit store for stale/dupe entries
-  distill.md                      # /priors:distill   — Phase 2 stub (transcript → candidate entries)
-  reconcile.md                    # /priors:reconcile — Phase 2 stub (drift detection via inferred_signals_hash)
-  auto-on.md                      # /priors:auto-on   — flip runtime flag for operator inject
-  auto-off.md                     # /priors:auto-off  — revert
-hooks/
-  hooks.json                      # hook registrations (SessionStart, UserPromptSubmit)
-  session-start.sh                # cold-start orientation reminder
-  user-prompt-submit.sh           # operator context injection (gated by .auto-on flag)
-lib/
-  init/
-    detect-stack.sh               # stack + package manager + TS strict + monorepo signals
-    detect-ci.sh                  # CI provider + test framework + e2e framework
-    detect-back-pressure.sh       # enforcement points (hook/lint/format/typecheck/ci)
-    inferred-signals-hash.sh      # SHA256 of canonical inference inputs — drift-detection primitive
-docs/
-  onboarding-design.md            # why /priors:init looks the way it does
-tests/
-  contract/test-hooks.sh          # 32-assertion hook audit
-  fixtures/existing-nextjs-ts/    # Flow A fixture
-  fixtures/fresh-empty/           # Flow B fixture
+```text
+~/.priors/projects/<repo-id>/priors/
 ```
 
-Commands run via Claude Code's native Read / Write / Edit / Bash tools. No `memory_20250818` tool, no SDK dependency.
+The old Claude Code plugin files were moved into ignored local reference storage:
 
-## Key design choices
+```text
+.reference/
+```
 
-- **Plugin format, not standalone config** — installable via `/plugin install` or `claude --plugin-dir`. Namespaced slash commands (`/priors:init`). Nothing in the user's repo.
-- **Store lives outside the repo** — `~/.claude/projects/<slug>/priors/`. `git status` stays clean.
-- **Zero ambient cost by default** — `UserPromptSubmit` hook is registered but silent; `/priors:auto-on` touches a `.auto-on` flag in the store that the hook checks before emitting. `SessionStart` fires once per session.
-- **Epistemically framed entries** — every entry has `valid_from` / `valid_through`; retrieval treats them as as-of records, not timeless beliefs.
-- **Lean compile** — no auto-generated CLAUDE.md, no auto-writes. Compiled artifacts (Phase 3) will emit as reviewable diffs.
+Do not depend on `.reference/` for active behavior or tests. It exists only to preserve migration context locally.
+
+## MCP behavior
+
+The server speaks line-delimited JSON-RPC over stdio and implements the MCP surfaces directly, without an SDK dependency.
+
+Primary tools:
+
+- `priors.init`
+- `priors.recall`
+- `priors.reinforce`
+- `priors.writeEntry`
+- `priors.updateEntry`
+- `priors.discard`
+- `priors.distill`
+- `priors.verifyProposals`
+- `priors.commitProposals`
+- `priors.emitConstraint`
+- `priors.applyEmission`
+- `priors.health`
+- `priors.export`
+
+Primary resources:
+
+- `priors://orientation/head`
+- `priors://operator`
+- `priors://state`
+- `priors://index`
+- `priors://entry/{id}`
+- `priors://compiled/harness-reminders`
+- `priors://audit/{id}`
+
+Primary prompts:
+
+- `priors_init`
+- `priors_recall`
+- `priors_reinforce`
+- `priors_distill`
+- `priors_emit_constraint`
+
+## Store contract
+
+The store remains plain files: YAML entries, JSON indexes/state/audit, Markdown orientation/compiled views.
+
+New MCP-first directories:
+
+```text
+staging/     # distill/write proposals before commit
+audit/       # JSONL audit trail
+emitted/     # reviewed emission artifacts before apply
+```
+
+Entries include activation/decay metadata:
+
+- `activation_score`
+- `decayed_activation_score` in generated indexes and recall results
+- `activation_state` in generated indexes and recall results
+- `last_used_at`
+- `helpful_count`
+- `decay_half_life_days`
+- `retrieval_policy`
+- `links`
+- `supersedes`
+- `superseded_by`
+- `contradiction_of`
+
+Recall is gated by uncertainty and decayed activation. Reinforcement is explicit: only call `priors.reinforce` for entries that actively helped a successful response. Distillation should extract failures, recoveries, optimizations, constraints, and decisions, not generic transcript facts.
+
+## Security constraints
+
+- Reject path traversal for resources, transcript paths, and emitted artifacts.
+- Do not write `.git/hooks` directly.
+- Do not write `.mcp.json` through emission tools.
+- `priors.applyEmission` requires `APPLY_PRIORS_EMISSION`.
+- Low-confidence proposal commits require `I_ACCEPT_PRIORS_RISK`.
+- `init-config` pins the local Node executable plus local `bin/priors-mcp.js`; do not generate `npx -y` configs.
 
 ## Local development
 
-Iterate against the repo as a live plugin:
+Run tests:
 
 ```bash
-claude --plugin-dir .
+make test
 ```
 
-That loads the plugin from cwd — hooks fire, commands are available as `/priors:*`. After editing any skill / command / hook, run `/reload-plugins` in the Claude Code session to pick up changes without restart.
+Run only MCP tests:
 
-## Testing
+```bash
+npm test
+```
 
-One contract test — `make test` runs `tests/contract/test-hooks.sh`, which audits the plugin manifest, the hooks registration, and both hook scripts (silent-failure guard, correct path, correct output shape, auto-on flag gating, 5-preference cap). 32 assertions.
+Run the server:
 
-## Phase status
+```bash
+node bin/priors-mcp.js --project-root "$PWD"
+```
 
-Phase 1 (capture + retrieve) ships as a Claude Code plugin. Phases 2–5 are specced in `internal/` but not implemented.
+Preview client config:
+
+```bash
+node bin/priors-mcp.js init-config --client claude --project-root "$PWD" --dry-run
+```
+
+## Editing guidance
+
+- Prefer changes in `src/priors-mcp.ts` and `tests/mcp/run-tests.mjs` for MCP behavior.
+- Do not reintroduce active Claude plugin files unless the user explicitly asks for a compatibility adapter.
+- Do not add network-dependent runtime packages unless the user explicitly accepts that dependency.
+- The runtime currently requires Node 25 because it imports `.ts` directly through Node's native type stripping.
