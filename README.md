@@ -53,6 +53,7 @@ node bin/priors-mcp.js init-config --client windsurf --project-root "$PWD"
 Use `--dry-run` to preview without writing.
 
 See `docs/mcp-architecture.md` for the implementation architecture and bootstrap config contract.
+See `docs/github-workflow.md` for the recommended branch/PR/tag/release/branch-protection workflow.
 
 ## MCP surface
 

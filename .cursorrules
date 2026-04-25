@@ -1,0 +1,67 @@
+# Worklog GitHub + DevOps Guardrails
+
+This repository ships an MCP server. Favor stable automation and small reviewable changes.
+
+## Branching strategy
+
+- Never push directly to `main`.
+- Create short-lived branches:
+  - `feat/<topic>` for features
+  - `fix/<topic>` for bug fixes
+  - `chore/<topic>` for non-feature maintenance
+  - `docs/<topic>` for docs-only updates
+- Keep branch scope narrow; one logical change per branch.
+
+## Commits
+
+- Use Conventional Commits:
+  - `feat:`
+  - `fix:`
+  - `chore:`
+  - `docs:`
+  - `test:`
+  - `refactor:`
+  - `ci:`
+- Prefer small commits with clear intent.
+
+## Pull requests
+
+- Open a PR for every branch merged into `main`.
+- PR title should follow Conventional Commit format when possible.
+- PR description must include:
+  - why this change exists
+  - what changed
+  - test evidence (`npm test` output summary)
+  - risk/rollback notes when behavior changed
+- Keep PRs small enough to review in under 20 minutes when practical.
+
+## CI expectations
+
+- Run `npm test` locally before pushing.
+- Do not merge if CI fails.
+- If CI fails, fix in the same branch before requesting review again.
+
+## Release and tags
+
+- Create a release only for meaningful shipped milestones.
+- Tag from `main` after PR merge using semver:
+  - `v0.x.y` while pre-1.0
+  - `v1.x.y+` after stable API contract
+- Version bump guidance:
+  - patch (`x.y.Z`): bug fixes, no API break
+  - minor (`x.Y.z`): new backward-compatible functionality
+  - major (`X.y.z`): breaking behavior or contract changes
+- Release notes should summarize user-visible behavior and migration steps.
+
+## MCP-specific safety
+
+- Keep runtime dependency count at zero unless explicitly approved.
+- Validate all tool inputs strictly and preserve path-traversal protections.
+- Do not introduce shell interpolation in core server logic.
+- Maintain JSONL audit writes for write/verify/emission paths.
+
+## Agent execution defaults
+
+- If a task changes behavior, add/update tests in the same PR.
+- If changing protocol/tool schemas, update docs in `README.md` or `docs/`.
+- Avoid broad refactors mixed with feature delivery unless requested.
