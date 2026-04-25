@@ -1,0 +1,320 @@
+# Instincts generated from https://github.com/claudialnathan/priors
+# Generated: 2026-04-25T03:49:37.797Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: priors-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/claudialnathan/priors
+---
+
+# Priors Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: chore
+
+## Evidence
+
+- 1 commits analyzed
+- Detected conventional commit pattern
+- Examples: chore: add GitHub workflow guardrails and release automation
+
+---
+id: priors-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/claudialnathan/priors
+---
+
+# Priors Commit Length
+
+## Action
+
+Write moderate-length commit messages (~60 characters)
+
+## Evidence
+
+- Average commit message length: 60 chars
+- Based on 1 commits
+
+---
+id: priors-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/claudialnathan/priors
+---
+
+# Priors Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: priors-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/claudialnathan/priors
+---
+
+# Priors Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: priors-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/claudialnathan/priors
+---
+
+# Priors Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: priors-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/claudialnathan/priors
+---
+
+# Priors Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: priors-instinct-camelcase-files
+trigger: "When creating or renaming a file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: claudialnathan/priors
+---
+
+# Priors Instinct Camelcase Files
+
+## Action
+
+Use camelCase for the file name
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.files
+
+---
+id: priors-instinct-camelcase-functions
+trigger: "When defining a function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: claudialnathan/priors
+---
+
+# Priors Instinct Camelcase Functions
+
+## Action
+
+Name the function using camelCase
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.functions
+
+---
+id: priors-instinct-pascalcase-classes
+trigger: "When defining a class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: claudialnathan/priors
+---
+
+# Priors Instinct Pascalcase Classes
+
+## Action
+
+Name the class using PascalCase
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.classes
+
+---
+id: priors-instinct-screaming-constants
+trigger: "When defining a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: claudialnathan/priors
+---
+
+# Priors Instinct Screaming Constants
+
+## Action
+
+Name the constant using SCREAMING_SNAKE_CASE
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.constants
+
+---
+id: priors-instinct-relative-imports
+trigger: "When importing modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: claudialnathan/priors
+---
+
+# Priors Instinct Relative Imports
+
+## Action
+
+Use relative import paths
+
+## Evidence
+
+- Pattern in codeStyle.importStyle
+
+---
+id: priors-instinct-named-exports
+trigger: "When exporting modules or functions"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: claudialnathan/priors
+---
+
+# Priors Instinct Named Exports
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in codeStyle.exportStyle
+
+---
+id: priors-instinct-separate-tests
+trigger: "When adding or organizing tests"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: claudialnathan/priors
+---
+
+# Priors Instinct Separate Tests
+
+## Action
+
+Place tests in a separate location from source code
+
+## Evidence
+
+- Pattern in architecture.folderStructure.testLocation
+
+---
+id: priors-instinct-conventional-commits-chore
+trigger: "When making a commit for maintenance or tooling"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: claudialnathan/priors
+---
+
+# Priors Instinct Conventional Commits Chore
+
+## Action
+
+Prefix the commit message with 'chore:' following Conventional Commits
+
+## Evidence
+
+- Seen in commit 'chore: add GitHub workflow guardrails and release automation'
+- Pattern in commits.prefixes
+
+---
+id: priors-instinct-conventional-commits-format
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: claudialnathan/priors
+---
+
+# Priors Instinct Conventional Commits Format
+
+## Action
+
+Follow the Conventional Commits format: <type>: <description>
+
+## Evidence
+
+- Pattern in commits.type
+- Seen in commit 'chore: add GitHub workflow guardrails and release automation'
+
+---
+id: priors-instinct-release-workflow-on-tag
+trigger: "When a new tag is pushed to the repository"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: claudialnathan/priors
+---
+
+# Priors Instinct Release Workflow On Tag
+
+## Action
+
+Trigger the release workflow defined in .github/workflows/release-on-tag.yml
+
+## Evidence
+
+- Pattern in architecture.configFiles
+- File .github/workflows/release-on-tag.yml
+
