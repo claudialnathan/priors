@@ -1,3 +1,13 @@
 internal/
 .claude/settings.local.json
 .claude.local.md
+node_modules/
+coverage/
+.reference/
+.vscode/
+.mcp.json
+.cursor/
+.priors/
+dist/
+build/
+*.tsbuildinfo

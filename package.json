@@ -1,0 +1,36 @@
+{
+  "name": "priors",
+  "version": "0.3.0",
+  "description": "MCP-first project-scoped harness memory for autonomous coding agents.",
+  "type": "module",
+  "bin": {
+    "priors-mcp": "./bin/priors-mcp.js"
+  },
+  "scripts": {
+    "test": "node tests/mcp/run-tests.mjs"
+  },
+  "files": [
+    "AGENTS.md",
+    "README.md",
+    "LICENSE",
+    "bin/",
+    "docs/",
+    "src/",
+    "tests/mcp/"
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "agents",
+    "memory",
+    "harness"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/claudialnathan/priors.git"
+  },
+  "engines": {
+    "node": ">=25"
+  },
+  "license": "MIT"
+}

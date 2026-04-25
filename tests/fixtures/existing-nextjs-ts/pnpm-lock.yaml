@@ -1,9 +1,0 @@
-lockfileVersion: '9.0'
-
-settings:
-  autoInstallPeers: true
-  excludeLinksFromLockfile: false
-
-# Minimal fixture lockfile — identifies the repo as pnpm-managed so
-# detect-stack.sh emits package_manager=pnpm. Real lockfiles list every
-# transitive dep; for fixture purposes we only need the header.

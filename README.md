@@ -2,132 +2,192 @@
 
 > A project's trajectory becomes legible to future agents as causality, not as retrieval.
 
-priors is a typed, project-scoped dataset of the decisions, corrections, constraints, dead-ends, and patterns that accrue across coding sessions. Directory-backed, zero ambient per-prompt cost. Future agents inherit the project's shape without being told.
+Priors is an MCP-first, project-scoped harness memory system for autonomous coding agents. It keeps a typed record of decisions, corrections, constraints, dead-ends, patterns, and open questions so a fresh agent can inherit project shape without replaying conversation history.
 
-Ships as a Claude Code plugin. The store lives in your `~/.claude/projects/<slug>/priors/` (agent-side, outside your repo — `git status` stays clean). The format is plain YAML + JSON + Markdown, so cross-model adapters can consume the same store later.
+The canonical store is vendor-neutral and lives outside the repo:
 
-Bootstraps from repo inference where possible. Interviews only what the repo can't answer, with at most three questions on a fresh project.
-
-## The inversion
-
-Most agent-memory work treats the agent as protagonist and memory as infrastructure the agent uses and priors inverts that. The project's trajectory is primary. Agents are transient participants. The sedimentation of the overall project trajectory persists and your agents come and go against it.
-
-Agent-primary tools optimise for a smarter, more capable agent. Trajectory-primary tools optimise for the project developing legible shape, a stance future agents inherit without being told. Different products, different features.
-
-## What it fixes
-
-Three gaps run through the research.
-
-**Untyped free-text loses causality.** "We chose X" records the outcome and loses the structure. Six months later you can't ask what else was considered or when we'd revisit. priors ships typed entries (`correction`, `decision`, `dead-end`, `pattern`, `constraint`, `open-question`), each with its own schema. You can ask what was decided, what was rejected, under what conditions we'd revisit. A companion `operator.yaml` holds the narrow slice of project-scoped operator facts that are directly observable — role in this project, known back-pressure targets, explicit hard constraints. Preferences, working-style, strengths, goals stay out of Phase 1 entirely; those are user-belief framings that break model accuracy under the belief-vs-fact vulnerability documented in AI Index 2026, and they accrue from evidence via `/priors-distill`, never from interview.
-
-**Contradictions silently overwrite.** Most stores append or overwrite when a new learning conflicts with an old one. The disagreement is the signal. priors keeps both entries and emits the contradiction as a first-class record with a supersede / coexist / revert resolution. `supersedes` and `superseded_by` form a bidirectional graph. Old layers keep their shape after they stop being current.
-
-**Notes don't produce back-pressure.** A rule in a notes file depends on the agent remembering to read and obey it. The lessons that compound are the ones the environment refuses to let you violate. Promoting an entry to `constraint` requires an enforcement target: a pre-tool-use hook, system-reminder injection, lint rule, or evaluator criterion. Descriptive-only entries stay at `note` and decay.
-
-## The store
-
-```
-~/.claude/projects/<slug>/priors/
-  HEAD.md              cold-start orientation — bullets with [source] tags, 60-line cap
-  operator.yaml        who's working on this project, as of when
-  state.json           live pointers + inferred_signals_hash (drift-detection primitive)
-  index.json           machine index of active entries
-  contradictions.json  first-class contradictions (Phase 2 populates)
-  entries/             typed YAML, date-prefixed, one file per entry
-  compiled/            regenerated human view + hook reminders (Phase 3)
-  archive/             retired entries
+```text
+~/.priors/projects/<repo-id>/priors/
 ```
 
-Directory-backed. Portable, git-friendly, grep-friendly, diff-friendly. Open the directory and understand the project in under a minute without running the tool.
+The old Claude Code plugin was moved into the ignored `.reference/` folder as local migration context. The tracked product architecture is now the standalone `priors-mcp` stdio server plus the `AGENTS.md` open instruction file.
 
-The format is the contract: plain YAML entries + JSON index + Markdown orientation. The plugin is one implementation surface; anything that can read a file can consume the same sediment.
+## Why MCP
+
+Priors is trajectory-primary: agents come and go, but the project sediment persists. MCP makes that sediment available to Claude Code, Cursor, Windsurf, Codex/OpenAI Agents SDK, and any other compliant client without binding the memory format to one vendor's plugin model.
+
+The memory model is intentionally not flat RAG. Priors treats a transcript as trajectory evidence and stores only compact, actionable strategies: failures, recoveries, optimizations, constraints, decisions, and open questions with provenance. Recall is a gated read path, while reinforcement is an explicit write path after an entry actually helps a successful response.
+
+`AGENTS.md` carries the client-neutral instruction contract:
+
+- use the `priors` MCP server;
+- read orientation resources at session start;
+- recall relevant priors when uncertainty is material;
+- reinforce only entries that actively helped a successful response;
+- write durable memory only through Priors MCP tools;
+- never edit `~/.priors` directly.
 
 ## Install
 
-As a Claude Code plugin:
+Use a current Node runtime. This repo intentionally has no runtime package dependencies; the MCP server speaks stdio JSON-RPC directly.
 
 ```bash
-# Local testing against a clone of this repo:
-claude --plugin-dir /path/to/priors
-
-# Once published to a marketplace:
-/plugin install priors
+npm test
+node bin/priors-mcp.js --version
 ```
 
-Inside Claude Code, run:
+During local development, run the server directly:
 
+```bash
+node bin/priors-mcp.js --project-root "$PWD"
 ```
-/priors:init
+
+Generate client config with pinned local paths:
+
+```bash
+node bin/priors-mcp.js init-config --client claude --project-root "$PWD"
+node bin/priors-mcp.js init-config --client cursor --project-root "$PWD"
+node bin/priors-mcp.js init-config --client windsurf --project-root "$PWD"
 ```
 
-On an existing codebase, priors reads what the repo can tell it — stack, CI, back-pressure targets (pre-commit hooks, lint configs, typecheck, CI workflows) — and presents the inferences with `[source]` tags you can accept, edit, or skip per line. Two questions cover what the repo can't tell (hard constraints not in CI, dead-ends you've already learned). No questions about preferences, thinking style, or goals; those are not capturable as timeless facts and are off-product by design.
+Use `--dry-run` to preview without writing.
 
-On a fresh repo, priors asks three project-shape questions instead — what you're building, what "working" looks like, any constraint that must hold — and leaves the rest to accrue.
+See `docs/mcp-architecture.md` for the implementation architecture and bootstrap config contract.
 
-Either way, `entries/` starts empty. Entries land through real work via `/priors:log` and (Phase 2) `/priors:distill`, not through an interview at init time.
+## MCP surface
 
-Every fresh Claude Code session in the project cold-starts from the priors automatically. No CLAUDE.md bloat. No ambient per-prompt tokens. Nothing added to your repo.
+Resources:
 
-## Phase 1 commands
+- `priors://orientation/head`
+- `priors://operator`
+- `priors://state`
+- `priors://index`
+- `priors://entry/{id}`
+- `priors://compiled/harness-reminders`
+- `priors://audit/{id}`
 
-| Command                  | What it does                                                                                                |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `/priors:init`           | Bootstrap the store. Inference-first on an existing codebase; three project-shape questions on a fresh repo |
-| `/priors:log`            | Write one typed entry (correction, decision, dead-end, pattern, open-question)                              |
-| `/priors:recall <query>` | Search by tag, type, substring, or file path                                                                |
-| `/priors:index`          | Regenerate `index.json` from `entries/`                                                                     |
-| `/priors:state`          | Refresh `state.json` from the working tree                                                                  |
-| `/priors:health`         | Audit the store for stale, low-use, contradicted, duplicate entries                                         |
-| `/priors:auto-on`        | Enable per-prompt operator injection (opt-in, default off)                                                  |
-| `/priors:auto-off`       | Disable per-prompt operator injection                                                                       |
-| `/priors:distill`        | (Phase 2, stubbed) Sub-agent proposes entries from the session transcript                                   |
-| `/priors:reconcile`      | (Phase 2, stubbed) Re-run inference, surface drift against what `HEAD.md` recorded at init                  |
+Tools:
 
-Every opt-in has a matching opt-out.
+- `priors.init`
+- `priors.recall`
+- `priors.reinforce`
+- `priors.writeEntry`
+- `priors.updateEntry`
+- `priors.discard`
+- `priors.distill`
+- `priors.verifyProposals`
+- `priors.commitProposals`
+- `priors.emitConstraint`
+- `priors.applyEmission`
+- `priors.health`
+- `priors.export`
 
-## Phase 2+ (roadmap, not shipping)
+Prompts:
 
-- `/priors:promote <id> --to <tier>` — move an entry up or down the tier ladder
-- `/priors:contradict <new> <old>` — record a disagreement with a supersede / coexist / revert stance
-- `/priors:compile` — regenerate `narrative.md` and `harness-reminders.md` deterministically
-- `/priors:emit <id>` — emit a constraint's enforcement artifact (pre-tool-use hook, lint rule, evaluator criterion)
-- `/priors:export <path>` — write the store to an external directory
-- `/priors:matcher-test <id>` — dry-run a constraint's matcher against a synthetic tool call
-- `/priors:enforce-on` — wire `PreToolUse` + system-reminder enforcement
+- `priors_init`
+- `priors_recall`
+- `priors_reinforce`
+- `priors_distill`
+- `priors_emit_constraint`
 
-Specced in `internal/phase-2-spec.md` through `phase-5-spec.md`. Phase 1 (capture + retrieve) ships first; later phases gate on each previous phase proving value.
+## Store layout
 
-## Token budget
+```text
+~/.priors/projects/<repo-id>/priors/
+  .format-version
+  HEAD.md
+  operator.yaml
+  state.json
+  index.json
+  contradictions.json
+  entries/
+  staging/
+  emitted/
+  audit/
+  compiled/
+  archive/
+```
 
-Zero ambient per-prompt cost by default. The `SessionStart` hook fires once per session and loads three small files. Distill, promote, compile, and export run user-invoked. Operator injection and enforcement are explicit opt-ins that document their cost at the point of opting in. Any always-on surface either fits inside the cold-start budget or ships off by default.
+The format remains plain YAML, JSON, and Markdown. `entries/` is canonical; `index.json` is regenerated. `staging/` holds distillation proposals before verification/commit. `audit/events.jsonl` records every write, verification, emission, rejection, and export.
 
-## Commitments
+If a legacy Claude Code store exists at `~/.claude/projects/<slug>/priors`, `priors.init` copies it into the neutral store once and records the migration.
 
-- The machine store is canonical. The human-readable narrative regenerates from entries, never hand-authored.
-- Contradictions are never silent overwrites. Both entries preserved. The disagreement is queryable.
-- Constraints require back-pressure targets. A rule the agent can ignore is not a rule.
-- Entries carry `valid_from` and `valid_through`. Retrieval treats them as "as-of" records. The AI Index 2026 finding on belief-vs-fact vulnerability (DeepSeek R1 dropping from 90%+ to 14.4% accuracy on false-user-belief framing) is a design constraint.
-- Operator context at init is minimal: `as_of`, role if volunteered, detected back-pressure targets, optional verbatim quotes. Paraphrased preference / thinking-style / goals arrays are refused by design — same belief-vs-fact constraint. Operator attributes accrue from real sessions via `/priors:distill`, not from an interview before any work has happened.
-- Store format is plain files (YAML / JSON / Markdown). Claude Code is the reference implementation; future adapters for Codex / Cursor / etc. read the same sediment.
-- No auto-generated CLAUDE.md. humanlayer documented that class of bloat as a performance regression.
-- No vector / embedding retrieval. Retrieval-by-similarity is what ACE and ReasoningBank improved over. Going back is a regression dressed up as sophistication.
+## Memory and curation
 
-## Lineage
+Entries are typed: `correction`, `decision`, `dead-end`, `pattern`, `constraint`, `operator`, and `open-question`.
 
-Reflexion (2023) → Dynamic Cheatsheet (Apr 2025) → ACE (Oct 2025) → ReasoningBank (NeurIPS 2026).
+Every committed entry carries decay and retrieval metadata:
 
-Three convictions run through this research:
+- `activation_score`
+- `decayed_activation_score` in generated indexes and recall results
+- `activation_state` in generated indexes and recall results
+- `last_used_at`
+- `helpful_count`
+- `decay_half_life_days`
+- `retrieval_policy`
+- `links`
+- `supersedes`
+- `superseded_by`
+- `contradiction_of`
 
-1. Compression loses signal you can't predict at capture time. Preserve detail, filter at read time. (ACE)
-2. Failures teach better than successes. Most systems don't capture them. (ReasoningBank)
-3. Curation is the product. Storage and retrieval are commodities. What to keep, what to promote, what to decay is where differentiation lives.
+Retrieval is decay-gated and typed/tag/path-first in v1. Callers pass an uncertainty signal; low-uncertainty recall is skipped unless forced, and latent entries stay out of broad retrieval unless they directly match the query or the caller opts into `includeLatent`. Semantic graph links are structural fields, not an embeddings dependency.
 
-Closest precedents: claude-mem captures episodes, emits no harness artifacts. Karpathy's LLM Wiki compiles knowledge, stays read-only, doesn't modify the environment. Anthropic's `/team-onboarding` is user-scoped, not decision-scoped. Mercury Second Brain is personal-scoped with no typed curation.
+Reinforcement is decoupled from recall. `priors.reinforce` only raises activation when a retrieved entry actively contributed to a successful response. Unhelpful or contradicted entries lose activation instead of being deleted, allowing rarely useful memories to decay into a latent state while preserving provenance.
 
-The move none of them make: emit harness artifacts from curated typed entries so the environment carries the enforcement.
+Distillation is staged and verified:
+
+1. `priors.distill` writes proposals to `staging/`.
+2. Every proposal includes evidence references, trajectory attribution, and a self-critique.
+3. `priors.verifyProposals` checks schema validity, actionability, transcript support, duplicate risk, contradiction risk, and path provenance.
+4. `priors.commitProposals` commits proposals above threshold. Low-confidence commits require the explicit risk token.
+
+## Back-pressure
+
+`priors.emitConstraint` creates reviewable artifacts only. `priors.applyEmission` requires an approval token and can write only allowlisted paths:
+
+- `.githooks/priors/*`
+- `scripts/priors/*`
+- `tests/priors/*`
+- `.config/priors/*`
+
+It rejects arbitrary `.mcp.json` writes, direct `.git/hooks` writes, path traversal, and non-allowlisted emission targets.
+
+## Security posture
+
+- Perception: validate tool inputs and reject path traversal.
+- Planning: classify write/emission tools as approval-gated.
+- Action: avoid shell interpolation; use filesystem APIs and fixed command shapes.
+- Memory: append JSONL audit records for writes, verification, emissions, and rejections.
+- Bootstrap configs pin the local Node executable and local `bin/priors-mcp.js`; generated configs do not rely on `npx -y`.
+
+## Tests
+
+```bash
+make test
+```
+
+The suite covers:
+
+- MCP protocol discovery: `initialize`, `tools/list`, `resources/list`, `resources/read`, `prompts/list`;
+- MCP tool input and output schemas, plus structured tool results;
+- store initialization under `~/.priors`;
+- entry validation, commit, index regeneration, and recall;
+- decay-gated recall and successful-use reinforcement;
+- distill proposal staging and verification;
+- low-confidence commit rejection;
+- emission allowlists and approval tokens;
+- config generation with pinned local executable paths.
+
+## Reference Material
+
+The historical Claude Code plugin files, old slash-command prompts, hook scripts, old init helpers, old hook tests, and fixture scaffolding are kept locally under:
+
+```text
+.reference/
+```
+
+That folder is git ignored. It is reference-only and not part of the active repository surface.
 
 ## The test
 
-A fresh Claude Code session given only a project's priors, no conversation history, predicts what the project accepts or rejects on held-out proposals. Project shape inherited.
-
-Trajectory legibility is the measure.
+A fresh agent given only a project's Priors store should predict what the project accepts or rejects on held-out proposals. Project shape inherited; trajectory legibility is the measure.
