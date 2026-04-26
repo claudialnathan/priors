@@ -11,3 +11,4 @@ dist/
 build/
 *.tsbuildinfo
 cln-w.md
+.priors/
