@@ -1,192 +1,289 @@
-# priors
+<p align="center">
+  <em>A logbook for your AI-assisted projects.</em>
+</p>
 
-> A logbook for AI-assisted projects: decisions, dead ends, and constraints — written by your agents, curated by you, readable by whoever (or whatever) shows up next.
+# Priors
 
-Priors is the project's record of itself. Decisions, corrections, constraints, dead-ends, patterns, and open questions live as structured markdown entries in `.priors/`. An MCP server exposes a deterministic orientation brief and a small set of read/write tools so a fresh agent — Claude, Cursor, Codex, or whatever ships next — can pick up the project without rediscovering the same context.
+<p align="center">
+  <a href="#quick-install"><img src="https://img.shields.io/badge/MCP-Compatible-FFD700?style=for-the-badge" alt="MCP Compatible"></a>
+  <a href="#getting-started"><img src="https://img.shields.io/badge/CLI-Local--first-blue?style=for-the-badge" alt="Local-first CLI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License: MIT"></a>
+  <a href="#status"><img src="https://img.shields.io/badge/Status-v1-blueviolet?style=for-the-badge" alt="Status: v1"></a>
+</p>
 
-The persistent subject is the **project**, not the user and not the AI. This is the design center of gravity. See [`docs/project-brief.md`](docs/project-brief.md) for why this is a different category from "AI memory."
+**The project's record of itself.** Priors keeps a typed log of decisions, dead ends, constraints, and open questions written by the agents working on a project, curated by you, and readable by whoever (or whatever) shows up next. A fresh Claude Code session opens the brief and inherits months of project shape in seconds. A new teammate reads the same file and gets the same orientation. The logbook lives in the repo, in plain markdown, and travels with the work.
 
-## What it is, and isn't
+Works inside the agent client you already use. The reference clients are [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Cursor](https://cursor.com), and the [OpenAI Codex CLI](https://github.com/openai/codex) (MCP in 0.4+), but anything that speaks MCP can read and write Priors. Switch tools, switch models, switch laptops; the substrate carries.
 
-**Is**
+<table>
+<tr><td><b>Brief the new arrival</b></td><td>A bounded, deterministic orientation document at <code>priors://brief</code>. IDs and one-line summaries for active decisions, constraints, contested items, recent changes, and open questions. Two runs against the same store produce byte-identical output. No LLM in the assembler, no surprises.</td></tr>
+<tr><td><b>Recall the dead ends</b></td><td>At the start of a sub-task, call <code>recall</code> with <code>kind: failure</code> (or <code>priors recall --kind failure</code> in the CLI) to surface <code>failure</code> entries: what was tried, symptoms, and why the approach was set aside. Stop re-discovering the same dead end.</td></tr>
+<tr><td><b>Stage the takeaways</b></td><td>End a hard session with <code>priors stage</code> (MCP: <code>stage_learning</code>). The distillation tool produces up to five candidate entries, each with a verbatim quote from the source as evidence. Substring-verified in code, not in the prompt. Nothing enters the active store until you <code>commit</code> it.</td></tr>
+<tr><td><b>Conflict-as-data</b></td><td>When new evidence disagrees with an old learning, both stay. <code>link_entries(a, contradicts, b)</code> sets both to <code>contested</code> and surfaces them together in the brief. New facts do not silently overwrite old ones; the disagreement is the data.</td></tr>
+<tr><td><b>Dated claims, not present-tense beliefs</b></td><td>Every entry has an <code>as_of</code>. Retrievals frame claims with their date, not as eternal truth. The pattern that breaks frontier models (the user-belief-as-fact failure) does not apply because no entry was ever written present-tense to begin with.</td></tr>
+<tr><td><b>Cross-client portability</b></td><td>The store is markdown plus YAML plus JSON in a <code>.priors/</code> folder. Open it in any text editor. Diff it in git. Export to a portable pack with <code>priors export</code>, import on another machine with <code>priors import --dry-run</code> defaulting on. ID is canonical, path is incidental, identity survives directory renames.</td></tr>
+<tr><td><b>Local-first, no infrastructure</b></td><td>No daemon. No database. No vector store. No cloud account. No background process. The MCP server runs when a client invokes it; the CLI runs when you invoke it. Everything else is files on disk.</td></tr>
+</table>
 
-- A typed, versioned record of *why a project moves the way it does* — including what was rejected.
-- A deterministic orientation brief at `priors://brief` that tells a fresh agent what to know in under 2,000 tokens.
-- A conservative distillation path that turns transcripts into staged candidates the user must approve before they enter the active store.
-- A local, file-based store that lives in the repo and travels with it. Markdown + YAML + JSON. No database. No daemon. No cloud.
+---
 
-**Isn't**
+## What this is not
 
-- Not a memory tool for the AI ("what does the AI know about me").
-- Not a wiki, RAG store, or vector database.
-- Not an agent runtime — Priors is substrate; the runtime sits on top.
-- Not a SaaS. Local-first, by design.
+| You might think             | But it's actually                                                                                         |
+| --------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Another AI memory tool      | A project record. The subject is the project, not the user and not the AI.                                |
+| RAG with extra steps        | Causal, dated, decision-shaped. RAG retrieves what exists; Priors preserves why the project moved.        |
+| A chatbot personality layer | A substrate. An agent runtime should write to it and read from it; Priors does not try to be the agent.   |
+| A note-taking app           | A typed, audited, conflict-aware log with a deterministic orientation surface. Notes do not have a brief. |
+| A backend service           | A folder in your repo.                                                                                    |
 
-For positioning detail and the full "isn't this just X?" comparison, see [`docs/project-brief.md`](docs/project-brief.md#what-to-say-when-someone-asks-isnt-this-just-x).
+The category move: **memory tools answer _what does the AI know about me?_ Priors answers _what does the project know about itself?_**
 
-## The headline rituals
+---
 
-1. **Brief the new arrival** — start of any session → `priors://brief`.
-2. **Recall the dead ends** — start of a sub-task → `recall(kind: failure)` returns rejected approaches with reasons.
-3. **Stage the takeaways** — end of a session → distill staged candidates, approve in 30 seconds.
-4. **Show me what's contested** — `recall(status: contested)` with both sides preserved.
-5. **Date the claims** — every retrieved entry carries an `as_of` field.
-6. **Decide and record** — moment of decision → templated `decision` entry.
-7. **Hand off the pack** — `priors export` + `priors import --dry-run`.
+## Quick install
 
-## Install
-
-```bash
-npx @priors/cli --version
-# or, from a clone:
-node bin/priors.js --version
-```
-
-Node 25+ is required (the runtime imports TypeScript directly via Node's native type stripping). Zero runtime dependencies.
-
-## Quick start
-
-In any project you want Priors-equipped:
+Node **25+** is required (this project imports `.ts` directly via Node’s native type stripping). Runtime **npm dependencies: zero** for the shipped package.
 
 ```bash
-# Initialize the local store (creates .priors/project.json with a UUID)
+npm install -g priors
+cd your-project
 priors init
-
-# See the (mostly empty) brief
-priors brief
-
-# Stage a decision
-priors stage --kind decision --claim "Use TypeScript for v1" \
-  --evidence "tsconfig.json" --as-of 2026-04-26
-
-# Approve and commit it
-priors commit <staged_id>
-
-# Re-render the brief
-priors brief
 ```
 
-## MCP surface (v1)
+If the package is not on the npm registry yet, clone this repo, run `npm link` from the project root, or call `node /absolute/path/to/bin/priors.js` as in [`docs/integrations.md`](docs/integrations.md).
 
-Three resources, six tools, one prompt. Stable across v1.
+`priors init` creates `.priors/` in the current directory and writes `project.json` with a new project UUID. It does not print MCP client configuration.
 
-**Resources**
-
-- `priors://brief` — bounded orientation document. IDs and one-line summaries only.
-- `priors://index` — full index in JSON.
-- `priors://entry/{id}` — full entry body and metadata.
-
-**Tools**
-
-- `recall(query, filters)` — plain text search over the index.
-- `get_entry(id)` — full entry body plus metadata.
-- `stage_learning(...)` — verifies candidate lessons against source content via verbatim substring match; writes verified to `staged/`.
-- `commit_learning(staged_id)` — promotes a staged entry to active.
-- `mark_stale(id, reason)` — soft state, distinct from `superseded`.
-- `link_entries(source_id, relation, target_id)` — relations: `supersedes`, `contradicts`, `reinforces`, `derived_from`.
-
-**Prompt**
-
-- `priors_distill` — renders the conservative-archivist system prompt for the calling agent to produce candidates.
-
-Every tool input and output has a concrete JSON schema with `additionalProperties: false`. Every write tool accepts a `client_request_id` for idempotency.
-
-## Cross-client setup
+To wire up Claude Code, Cursor, or the Codex CLI, generate a config snippet (absolute paths to `node` and the `priors` entrypoint) and merge it into your client config — see [`docs/integrations.md`](docs/integrations.md). From your project:
 
 ```bash
-priors init-config --client claude   --project-root "$PWD"
-priors init-config --client cursor   --project-root "$PWD"
-priors init-config --client codex    --project-root "$PWD"
+priors init-config --client claude
+priors init-config --client cursor
+priors init-config --client codex
 ```
 
-Use `--dry-run` to preview without writing. Generated configs pin the local Node executable and the local CLI path; they do not depend on `npx -y` for production use.
+---
 
-See [`docs/integrations.md`](docs/integrations.md) for the full per-client config snippets.
+## Getting started
 
-## Store layout
+```bash
+priors init                  # create .priors/ in the current project
+priors brief                 # read the orientation document (same as priors://brief)
+priors stage --source-kind session_log --source-ref my-session --source-content @transcript.md
+priors commit <staged-id>  # promote a staged entry to active
+priors recall --query "rls"  # plain-text search over the index
+priors recall --kind failure  # list failure / dead-end entries
+priors recall --status contested  # list contested entries
+priors link <a> contradicts <b>   # record a disagreement
+priors mark-stale <id> --reason "..."  # soft-deprecate an entry
+priors export --destination ./export-pack  # write manifest + entries (directory)
+priors import ./export-pack  # default: dry-run preview; add --apply to write
+priors health                # self-check the store
+priors evals                 # run the regression suite
+```
 
-```text
+The CLI mirrors the MCP surface one-to-one. Whatever an agent can do through MCP, you can do at the terminal.
+
+---
+
+## What an entry looks like
+
+Plain markdown with YAML frontmatter:
+
+```markdown
+---
+id: priors-20260420-supabase-rls
+kind: decision
+project: priors
+created_at: 2026-04-20
+as_of: 2026-04-20
+status: active
+confidence: high
+source_refs:
+  - file: src/auth/policies.sql
+  - commit: 7ea11c4
+relations:
+  supersedes: [priors-20260318-supabase-noauth]
+  derived_from: []
+---
+
+## Claim
+
+Use Supabase Row Level Security with `auth.uid()` for all user-scoped tables.
+
+## Context
+
+Earlier we used a single service-role key from the API server. This kept logic in
+one place but meant a single bug in route handling could leak any user's data.
+
+## Evidence
+
+PR #142 added a regression test that exercises the RLS policies directly.
+The original "noauth" approach is preserved in `priors-20260318-supabase-noauth`,
+now marked superseded.
+
+## Implications for future agents
+
+Treat RLS as the boundary. Do not add server-side authorization checks that
+duplicate it. Do not bypass it with the service role outside admin scripts.
+
+## Failure mode if misapplied
+
+Stacking server-side checks on top of RLS creates two sources of truth and
+hides RLS bugs behind app-layer correctness. The team has done this before.
+```
+
+---
+
+## What the brief looks like
+
+`priors://brief` returns a bounded document. IDs and summaries only; never the full bodies. Pull deeper with `get_entry(id)` when you need to.
+
+```markdown
+# priors brief
+
+project: priors • generated: 2026-04-26 14:02 UTC • 47 active entries
+
+## Goal
+
+v1 ships a project trajectory substrate with deterministic brief and
+conservative staged distillation. (priors-20260301-v1-scope)
+
+## Active decisions
+
+- Use Row Level Security for all user-scoped tables. (priors-20260420-supabase-rls)
+- TypeScript over Python for the MCP server. (priors-20260305-typescript)
+- ID is canonical, path is incidental. (priors-20260311-id-vs-path)
+
+## Active constraints
+
+- Brief must respond in under 300ms. (priors-20260318-brief-latency)
+- No LLM call in the brief assembler. (priors-20260318-brief-determinism)
+
+## Contested
+
+- Whether staged entries should auto-expire. Both sides preserved.
+  (priors-20260402-stage-expiry-yes vs priors-20260408-stage-expiry-no)
+
+## Recently superseded (last 14 days)
+
+- priors-20260318-supabase-noauth → superseded by priors-20260420-supabase-rls
+
+## Open questions
+
+- Is `priors://log` paginated or returned whole? (priors-20260415-log-shape)
+
+## Next look
+
+- 8 staged entries awaiting review. Inspect `.priors/staged/` and use `priors commit <id>` to promote.
+```
+
+---
+
+## How it works
+
+```
 .priors/
   project.json          # UUID, name, created_at
   entries/              # active entries, by kind
-    decisions/
-    failures/
-    constraints/
-    patterns/
-    questions/
-    hypotheses/
-  staged/               # candidates awaiting user approval
-  indexes/all.json      # regenerated on every write
-  audit/
-    actions.log         # JSONL: every write
-    distillation-rejects.log
-  exports/
+    decisions/  failures/  constraints/  patterns/  questions/
+  staged/               # candidates awaiting your approval
+  indexes/all.json      # fast lookup, regenerated on every write
+  audit/                # every write logged with timestamp and source
+  exports/              # portable packs from `priors export`
   brief.md              # generated by `priors brief`
-  log.md                # chronological state
+  log.md                # chronological project trajectory
 ```
 
-Markdown with YAML frontmatter for entries. JSON for indexes and audit. The store should open in any text editor and be obvious. No database. No vector store. No embeddings.
+The MCP server exposes three resources (`priors://brief`, `priors://index`, `priors://entry/{id}`) and six tools (`recall`, `get_entry`, `stage_learning`, `commit_learning`, `mark_stale`, `link_entries`). Every tool has a concrete JSON schema with examples. Every write tool accepts a `client_request_id` for idempotency.
 
-## Entry kinds
+The CLI calls the same store and the same logic. A change to one is a change to both.
 
-- `decision` — a choice made between alternatives, with rationale.
-- `failure` — an approach tried and abandoned, with what went wrong.
-- `constraint` — a rule the project must hold (e.g., "the brief must respond in under 300ms").
-- `pattern` — a recurring approach worth re-applying.
-- `question` — an open issue depending on input.
-- `hypothesis` — a tentative claim worth investigating.
+---
 
-Every entry carries `as_of`, `confidence`, `status`, and a structured set of `relations` (`supersedes`, `contradicts`, `reinforces`, `derived_from`).
+## v1 scope
 
-## What's deliberately deferred to v2+
+**In:**
 
-- Active decay scoring / helpful-harmful counters
+- Local store at `.priors/` (markdown plus frontmatter, JSON for state)
+- MCP server with three resources and six tools
+- CLI mirroring the MCP surface
+- Deterministic brief assembly within a hard token ceiling
+- Conservative staged distillation with mandatory quoted evidence
+- Export and import with `--dry-run` defaulting on
+- Setup snippets for at least three MCP clients
+- Seven-task regression suite
+
+**Out, deliberately deferred:**
+
+- Decay scoring, helpful or harmful counters, activation tracking
 - Auto-distillation hooks (manual `priors stage` only)
-- `emit_constraint` (back-pressure to executable checks)
-- Multi-project / team-shared store
-- Web UI / dashboard
-- Vector store / embedding-based search
-- Cloud sync
+- `emit_constraint` (natural-language rules to executable checks)
+- Multi-project or team-shared store
+- Web UI or dashboard
+- Vector store, embeddings, semantic search
+- Cloud sync, account model, anything that requires a server
+- Background daemons of any kind
 
-For each, see [`docs/project-brief.md`](docs/project-brief.md#future-considerations) for what would be required to ship it well, where it could fall apart, and where it could be faked badly.
+Each deferred item has a section in [`docs/project-brief.md`](docs/project-brief.md) explaining what would be required to ship it well. Pull requests that pull v1 toward any of the deferred items will be sent back to that section.
 
-## Tests
+---
+
+## How Priors compares
+
+|                                | Priors                      | Memory tools (Mem0, Letta, Zep)     | RAG over docs   |
+| ------------------------------ | --------------------------- | ----------------------------------- | --------------- |
+| Subject                        | Project                     | User                                | Documents       |
+| Survives client switch         | Yes (MCP plus files)        | Vendor-bound                        | Yes             |
+| Survives stale beliefs         | Yes (dated, sourced)        | Often no (present-tense user facts) | Depends on docs |
+| Failures preserved             | Yes (first-class entries)   | Rare                                | No              |
+| Conflict handling              | Both sides preserved        | Overwrite or merge                  | N/A             |
+| Verification on capture        | Yes (substring quote check) | Usually none                        | N/A             |
+| Auto-commit                    | Never                       | Often                               | N/A             |
+| Local, inspectable             | Yes                         | Mostly cloud                        | Depends         |
+| Substrate for an agent runtime | Yes                         | Often the runtime itself            | No              |
+
+---
+
+## Documentation
+
+| Doc | What's covered |
+| --- | --- |
+| [`AGENTS.md`](AGENTS.md) | Operating contract for any agent entering this repo. Read first. |
+| [`docs/project-brief.md`](docs/project-brief.md) | Positioning, audiences, headline rituals, v1 scope, deferred-item rationale. |
+| [`docs/specs/brief-resource.md`](docs/specs/brief-resource.md) | Locked spec for `priors://brief`. Ranking rules and edge cases. |
+| [`docs/specs/staged-distillation.md`](docs/specs/staged-distillation.md) | Locked spec for `stage_learning`. Quote-or-refuse rule, verification contract. |
+| [`docs/integrations.md`](docs/integrations.md) | MCP client config snippets. |
+| [`docs/evals.md`](docs/evals.md) | How the seven-task regression suite works. |
+
+---
+
+## Status
+
+v1 is in active implementation. The four spec docs are locked. The seven-task regression suite is the definition of done; once it passes, v1 ships.
+
+Priors uses Priors. Decisions made during v1 implementation are staged and committed into the project's own `.priors/`. By the time it ships, the dogfood story is the demo.
+
+---
+
+## Contributing
+
+The shortest path:
 
 ```bash
-make test
-# or
+git clone https://github.com/claudialnathan/priors.git
+cd priors
+npm install
 npm test
 ```
 
-The suite covers:
+Read [`AGENTS.md`](AGENTS.md) before opening a PR. The non-negotiables there are not style preferences; they trace to specific risks identified in the brief and the specs. PRs that violate them will get sent back with a pointer.
 
-- Entry validation, write, index regeneration
-- Deterministic brief assembly (byte-identical output from identical state)
-- Brief 2,000-token ceiling enforcement and per-section budget
-- `recall` filters and ordering
-- `stage_learning` quote-or-refuse verification (substring match against source)
-- `commit_learning` promotion and audit
-- `link_entries` cycle and self-link rejection
-- The seven AGENTS.md regression scenarios
+If you want to propose a feature that is currently deferred, open an issue rather than a PR. The deferred-item sections in [`docs/project-brief.md`](docs/project-brief.md) are the place to argue for the missing pieces.
 
-## Security posture
-
-- Path traversal rejected on resource IDs and transcript paths.
-- No shell interpolation in core server logic.
-- JSONL audit records for every write, distillation reject, and link change.
-- Generated MCP client configs pin `process.execPath` and the local CLI path.
-- See [`SECURITY.md`](SECURITY.md).
-
-## Returning to the legacy v0.3 implementation
-
-The pre-rejig MCP server (with `~/.priors`, decay scoring, `priors.reinforce`, `priors.emitConstraint`) is preserved at the tag `legacy/v0.3.0`:
-
-```bash
-git checkout legacy/v0.3.0
-```
-
-It is not maintained on `main` or `reval`.
+---
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+[MIT](LICENSE) — free to use, modify, and distribute; keep the copyright notice in copies. Copyright © 2026 Claudia Nathan.

@@ -61,8 +61,8 @@ These audiences don't conflict. The same product serves all three; only the surf
 Seven concrete interactions, each in `human-job → moment → primitive` form. The first three are the v1 headline. Everything else supports.
 
 1. **Brief the new arrival.** *I have ten minutes to get a fresh agent up to speed.* → start of any new session → `priors://brief`.
-2. **Recall the dead ends.** *I have a nagging feeling we already ruled this out.* → start of a new sub-task → `recall(filter: rejected)` returning the rejection reason.
-3. **Stage the takeaways.** *Hard problem cleared, I want the lesson to stick without breaking flow.* → end of a session → `distill --stage-only`, approve in 30 seconds.
+2. **Recall the dead ends.** *I have a nagging feeling we already ruled this out.* → start of a new sub-task → `recall(kind: failure)` (CLI: `priors recall --kind failure`) returning failure entries and rejection context.
+3. **Stage the takeaways.** *Hard problem cleared, I want the lesson to stick without breaking flow.* → end of a session → `stage_learning` / `priors stage`, then `commit_learning` / `priors commit` to promote to active.
 4. **Show me what's contested.** *Something feels off; what changed?* → review or onboarding → `recall(status: contested)` with both sides preserved.
 5. **Date the claims.** *Is this fact still true?* → before relying on retrieved info → every entry retrieved with `as_of` framing.
 6. **Decide and record.** *I'm about to make a non-obvious choice, leave a trail.* → moment of decision → templated `decision` entry.

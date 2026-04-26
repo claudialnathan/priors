@@ -2,6 +2,7 @@
   "name": "priors",
   "version": "1.0.0-rc.0",
   "description": "Local-first project memory for AI-assisted projects. MCP server + CLI. Decisions, dead ends, constraints, open questions — written by your agents, curated by you.",
+  "author": "Claudia Nathan (https://github.com/claudialnathan)",
   "type": "module",
   "bin": {
     "priors": "./bin/priors.js"

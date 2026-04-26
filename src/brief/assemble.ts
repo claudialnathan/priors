@@ -572,7 +572,7 @@ function stagedBacklogWarning(
     return now.getTime() - ms > 30 * MS_PER_DAY;
   });
   if (aged.length > 50) {
-    return `> Heads up: ${aged.length} staged entries are older than 30 days. Run \`priors review-staged\` to triage.`;
+    return `> Heads up: ${aged.length} staged entries are older than 30 days. Triage \`.priors/staged/\` and run \`priors commit <id>\` to promote, or remove files after review.`;
   }
   if (aged.length > 20) {
     return `> Heads up: ${aged.length} staged entries are older than 30 days.`;
