@@ -72,6 +72,18 @@ The layout is the API. The shipped server and CLI are just one implementation; a
 
 ## Install
 
+If you installed from npmjs with the default command (`npm i priors`), run Priors with `npm exec` (or `npx`) because local installs do not expose `priors` on your shell `PATH`.
+
+Local install (matches npmjs install box):
+
+```bash
+npm i priors
+npm exec priors init
+# or: npx priors init
+```
+
+Global install (direct `priors` command):
+
 ```bash
 npm install -g priors
 priors init
