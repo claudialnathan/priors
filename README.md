@@ -8,30 +8,48 @@ The store lives in `.priors/` as plain Markdown, YAML, and JSON. No daemon, no d
 
 Priors tracks what the repo knows about its own history using the MCP wire-up you already have. Reference clients include [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Cursor](https://cursor.com), and the [Codex CLI / OpenAI Agents SDK](https://github.com/openai/openai-agents-python). Any MCP client can read and write the same files.
 
----
+
 
 ## Why it exists
 
-**Harness memory belongs to the project, not the agent.** Put memory in a user-shaped bucket and retrieval returns generalized, present-tense preference claims. Under belief-vs-fact reframing, accuracy collapses. Priors explicitly stores dated, sourced facts: _as of 2026-04-12 we picked X for reason Y, evidence in commit `abc`._
+**Harness memory belongs to the project, not the agent.** Put memory in a user-shaped bucket and retrieval returns generalized, present-tense preference claims. Under [belief-vs-fact reframing](https://news.stanford.edu/stories/2025/11/ai-language-models-facts-belief-human-understanding-research), accuracy collapses. Priors explicitly stores dated, sourced facts: _as of 2026-04-12 we picked X for reason Y, evidence in commit `abc`._
 
 **Winning answers aren't enough.** Stop at _we chose X_ and you drop the failures, rejected forks, and revisit dates—guaranteeing the next agent will hallucinate its way down the exact same dead end. Priors entries carry a `kind` (`decision`, `failure`, `constraint`, `pattern`, `question`). Agents can pull rejected approaches or stale markers without flooding their context window.
 
 **Tension is data.** If you log only the final answer, you bury the fork you rejected. Priors keeps both sides. `link_entries(source_id, contradicts, target_id)` marks both as `contested` and the brief lists them together. Query the tension instead of deleting it.
 
----
+
 
 ## What you get
 
-|                        |                                                                                                                                                                                                                                                |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Context Efficiency** | `priors://brief` is bounded, deterministic, and assembled without an LLM. Same store in, same bytes out. It provides IDs and one-line summaries; agents pull full bodies with `get_entry` only when needed.                                    |
-| **Failures as Data**   | Dead ends are first-class entries. `recall` returns them with the underlying reasons attached so agents don't repeat mistakes.                                                                                                                 |
-| **Staged Promotion**   | `stage_learning` / `priors stage` writes candidates to `staged/` only. Each claim requires a verbatim quote verified by a substring match in the code. You promote with `commit_learning` / `priors commit`. Nothing auto-lands in `entries/`. |
-| **Visible Conflict**   | Contradictions stay in the index. The brief explicitly calls out `contested` rows for agent review.                                                                                                                                            |
-| **Portable State**     | `.priors/` is the contract. Export a zip, import elsewhere with `--dry-run` first. The project's identity is the UUID in `project.json`, not the folder path.                                                                                  |
-| **Zero Infra**         | MCP runs when a client starts it; the CLI runs when you run it. Everything else is just files on disk.                                                                                                                                         |
+<table>
+<tr>
+  <td><b>Context Efficiency</b></td>
+  <td><code>priors://brief</code> is bounded, deterministic, and assembled without an LLM. Same store in, same bytes out. It provides IDs and one-line summaries; agents pull full bodies with <code>get_entry</code> only when needed.</td>
+</tr>
+<tr>
+  <td><b>Failures as Data</b></td>
+  <td>Dead ends are first-class entries. <code>recall</code> returns them with the underlying reasons attached so agents don't repeat mistakes.</td>
+</tr>
+<tr>
+  <td><b>Staged Promotion</b></td>
+  <td><code>stage_learning</code> / <code>priors stage</code> writes candidates to <code>staged/</code> only. Each claim requires a verbatim quote verified by a substring match in the code. You promote with <code>commit_learning</code> / <code>priors commit</code>. Nothing auto-lands in <code>entries/</code>.</td>
+</tr>
+<tr>
+  <td><b>Visible Conflict</b></td>
+  <td>Contradictions stay in the index. The brief explicitly calls out <code>contested</code> rows for agent review.</td>
+</tr>
+<tr>
+  <td><b>Portable State</b></td>
+  <td><code>.priors/</code> is the contract. Export a zip, import elsewhere with <code>--dry-run</code> first. The project's identity is the UUID in <code>project.json</code>, not the folder path.</td>
+</tr>
+<tr>
+  <td><b>Zero Infra</b></td>
+  <td>MCP runs when a client starts it; the CLI runs when you run it. Everything else is just files.</td>
+</tr>
+</table>
 
----
+
 
 ## Store layout
 
@@ -50,7 +68,7 @@ Priors tracks what the repo knows about its own history using the MCP wire-up yo
 
 The layout is the API. The shipped server and CLI are just one implementation; anything that reads files can participate.
 
----
+
 
 ## Install
 
@@ -87,7 +105,7 @@ npm install
 node bin/priors.js init --project-root .
 ```
 
----
+
 
 ## Commands
 
@@ -114,7 +132,7 @@ priors mcp                               # stdio MCP server for clients
 
 The CLI exactly matches the MCP tool surface: agents and humans hit the same code paths.
 
----
+
 
 ## Entry
 
@@ -161,7 +179,7 @@ Two sources of truth hide RLS bugs behind app-layer correctness. The team
 has done this before.
 ```
 
----
+
 
 ## Brief
 
@@ -206,7 +224,7 @@ conservative staged distillation. (priors-20260301-v1-scope)
 - 8 staged entries awaiting review: run `priors commit <id>` after edits, or remove files under `.priors/staged/` you reject.
 ```
 
----
+
 
 ## Design center
 
@@ -219,7 +237,7 @@ conservative staged distillation. (priors-20260301-v1-scope)
 - **Stable IDs:** UUID in `project.json` survives directory renames and moves.
 - **Idempotent writes:** MCP tools accept `client_request_id` so retries do not duplicate work.
 
----
+
 
 ## v1 boundary
 
@@ -229,7 +247,7 @@ conservative staged distillation. (priors-20260301-v1-scope)
 
 Each deferral has notes in [`docs/project-brief.md`](docs/project-brief.md). PRs that smuggle deferred scope without a spec change go back to that doc.
 
----
+
 
 ## Lineage (named)
 
@@ -239,9 +257,6 @@ Each deferral has notes in [`docs/project-brief.md`](docs/project-brief.md). PRs
 - **AI Index 2026:** belief-vs-fact reframing as a concrete retrieval risk.
 - **Foundation Model Transparency Index:** year-on-year opacity drop motivates a user-owned, inspectable layer.
 
-Adjacent tools: `claude-mem` stores episodes without harness-shaped exports; Karpathy’s `LLM Wiki` compiles knowledge read-only; Anthropic `/team-onboarding` centers the user, not the diff. Priors targets the repo’s own decision trail as the durable object.
-
----
 
 ## Docs
 
@@ -254,13 +269,13 @@ Adjacent tools: `claude-mem` stores episodes without harness-shaped exports; Kar
 | [`docs/integrations.md`](docs/integrations.md)                           | MCP client wiring instructions.                      |
 | [`docs/evals.md`](docs/evals.md)                                         | Regression suite layout and scoring.                 |
 
----
+
 
 ## Status
 
 v1 implementation is active. Specs above are locked; the regression suite is the release gate. This repo dogfoods its own `.priors/` folder as it ships.
 
----
+
 
 ## Contributing
 
@@ -275,13 +290,13 @@ Read [`AGENTS.md`](AGENTS.md) before submitting a PR. The rules there map to con
 
 Feature requests for deferred items: open an issue first; argue from [`docs/project-brief.md`](docs/project-brief.md).
 
----
+
 
 ## The Bar
 
 Give a fresh agent only `.priors/` and no chat history. On held-out tasks, its first actions should match the constraints the team already recorded. If the store does not move that needle, it is just decoration.
 
----
+
 
 ## License
 
