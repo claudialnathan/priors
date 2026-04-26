@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "project_id": "02292673-6731-4fb6-8776-194628bccff0",
+  "generated_at": "2026-04-26T05:30:00Z",
+  "entries": [
+    {
+      "id": "pri-20260426-brief-token-ceiling",
+      "kind": "constraint",
+      "claim": "priors://brief must fit within ~2,000 tokens, enforced per-section per the budget table in docs/specs/brief-resource.md. There is no extended brief.",
+      "status": "active",
+      "confidence": "high",
+      "as_of": "2026-04-26",
+      "updated_at": "2026-04-26T05:30:00Z",
+      "path": "entries/constraints/pri-20260426-brief-token-ceiling.md"
+    },
+    {
+      "id": "pri-20260426-contested-resolution-ux",
+      "kind": "question",
+      "claim": "What is the right CLI/MCP UX for resolving contested entries? A `priors resolve <id>` verb, a `commit_learning` flag, or just manual `mark_stale` + `link_entries`?",
+      "status": "active",
+      "confidence": "medium",
+      "as_of": "2026-04-26",
+      "updated_at": "2026-04-26T05:30:00Z",
+      "path": "entries/questions/pri-20260426-contested-resolution-ux.md"
+    },
+    {
+      "id": "pri-20260426-decay-and-emit-overreach",
+      "kind": "failure",
+      "claim": "v0.3 added active decay scoring, helpful/harmful counters, and emit_constraint. All three were rejected in v1 because curation, not retrieval gymnastics, is the product.",
+      "status": "active",
+      "confidence": "high",
+      "as_of": "2026-04-26",
+      "updated_at": "2026-04-26T05:30:00Z",
+      "path": "entries/failures/pri-20260426-decay-and-emit-overreach.md"
+    },
+    {
+      "id": "pri-20260426-deterministic-brief",
+      "kind": "decision",
+      "claim": "priors://brief is mechanically assembled from indexes/all.json. No LLM call inside the assembler.",
+      "status": "active",
+      "confidence": "high",
+      "as_of": "2026-04-26",
+      "updated_at": "2026-04-26T05:30:00Z",
+      "path": "entries/decisions/pri-20260426-deterministic-brief.md"
+    },
+    {
+      "id": "pri-20260426-idempotent-writes",
+      "kind": "constraint",
+      "claim": "Every MCP write tool accepts a client_request_id. Repeated requests with the same ID return the original result instead of writing again.",
+      "status": "active",
+      "confidence": "high",
+      "as_of": "2026-04-26",
+      "updated_at": "2026-04-26T05:30:00Z",
+      "path": "entries/constraints/pri-20260426-idempotent-writes.md"
+    },
+    {
+      "id": "pri-20260426-in-repo-store",
+      "kind": "decision",
+      "claim": "The Priors store lives at <project-root>/.priors/, in the project's own repo. There is no shared ~/.priors directory.",
+      "status": "active",
+      "confidence": "high",
+      "as_of": "2026-04-26",
+      "updated_at": "2026-04-26T05:30:00Z",
+      "path": "entries/decisions/pri-20260426-in-repo-store.md"
+    },
+    {
+      "id": "pri-20260426-long-source-chunking",
+      "kind": "question",
+      "claim": "How should stage_learning handle source content that exceeds ~32K tokens? Per-chunk distillation with a merge step, or refuse and require manual chunking?",
+      "status": "active",
+      "confidence": "medium",
+      "as_of": "2026-04-26",
+      "updated_at": "2026-04-26T05:30:00Z",
+      "path": "entries/questions/pri-20260426-long-source-chunking.md"
+    },
+    {
+      "id": "pri-20260426-mcp-cli-mirror",
+      "kind": "decision",
+      "claim": "The CLI mirrors the MCP surface one-to-one. Both call the same store/logic; whichever is changed, the other is changed in lockstep.",
+      "status": "active",
+      "confidence": "high",
+      "as_of": "2026-04-26",
+      "updated_at": "2026-04-26T05:30:00Z",
+      "path": "entries/decisions/pri-20260426-mcp-cli-mirror.md"
+    },
+    {
+      "id": "pri-20260426-no-path-traversal",
+      "kind": "constraint",
+      "claim": "All read and write operations are confined to <project-root>/.priors/. Resource IDs match ^[a-z0-9-]+$ and any traversal attempt is rejected at the schema layer.",
+      "status": "active",
+      "confidence": "high",
+      "as_of": "2026-04-26",
+      "updated_at": "2026-04-26T05:30:00Z",
+      "path": "entries/constraints/pri-20260426-no-path-traversal.md"
+    },
+    {
+      "id": "pri-20260426-quote-or-refuse",
+      "kind": "constraint",
+      "claim": "Every staged claim must be supported by a verbatim quote from the source content, verified by code substring match. No exceptions, no fast path.",
+      "status": "active",
+      "confidence": "high",
+      "as_of": "2026-04-26",
+      "updated_at": "2026-04-26T05:30:00Z",
+      "path": "entries/constraints/pri-20260426-quote-or-refuse.md"
+    },
+    {
+      "id": "pri-20260426-rename-migration",
+      "kind": "question",
+      "claim": "When a project's directory is renamed or moved, the UUID in .priors/project.json is canonical — but what about external references (MCP client configs that pin paths, CI workflows, doc links)?",
+      "status": "active",
+      "confidence": "medium",
+      "as_of": "2026-04-26",
+      "updated_at": "2026-04-26T05:30:00Z",
+      "path": "entries/questions/pri-20260426-rename-migration.md"
+    },
+    {
+      "id": "pri-20260426-stage-only-distillation",
+      "kind": "decision",
+      "claim": "Distillation never auto-commits. stage_learning only writes to staged/; commit_learning is the only path to active entries/, and it requires an explicit user action.",
+      "status": "active",
+      "confidence": "high",
+      "as_of": "2026-04-26",
+      "updated_at": "2026-04-26T05:30:00Z",
+      "path": "entries/decisions/pri-20260426-stage-only-distillation.md"
+    },
+    {
+      "id": "pri-20260426-typescript-node25",
+      "kind": "decision",
+      "claim": "v1 is implemented in TypeScript on Node 25, importing .ts directly via Node's native type stripping, with zero runtime dependencies.",
+      "status": "active",
+      "confidence": "high",
+      "as_of": "2026-04-26",
+      "updated_at": "2026-04-26T05:30:00Z",
+      "path": "entries/decisions/pri-20260426-typescript-node25.md"
+    },
+    {
+      "id": "pri-20260426-zero-runtime-deps",
+      "kind": "constraint",
+      "claim": "Priors has zero runtime dependencies. The package.json `dependencies` block is empty; only devDependencies and types are allowed.",
+      "status": "active",
+      "confidence": "high",
+      "as_of": "2026-04-26",
+      "updated_at": "2026-04-26T05:30:00Z",
+      "path": "entries/constraints/pri-20260426-zero-runtime-deps.md"
+    }
+  ],
+  "counts": {
+    "active": 14,
+    "staged": 0,
+    "superseded": 0,
+    "stale": 0,
+    "contested": 0,
+    "by_kind": {
+      "decision": 5,
+      "constraint": 5,
+      "failure": 1,
+      "question": 3,
+      "pattern": 0,
+      "hypothesis": 0
+    }
+  }
+}

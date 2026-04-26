@@ -1,28 +1,38 @@
 {
   "name": "priors",
-  "version": "0.3.0",
-  "description": "MCP-first project-scoped harness memory for autonomous coding agents.",
+  "version": "1.0.0-rc.0",
+  "description": "Local-first project memory for AI-assisted projects. MCP server + CLI. Decisions, dead ends, constraints, open questions — written by your agents, curated by you.",
+  "author": "Claudia Nathan (https://github.com/claudialnathan)",
   "type": "module",
   "bin": {
-    "priors-mcp": "./bin/priors-mcp.js"
+    "priors": "./bin/priors.js"
   },
   "scripts": {
-    "test": "node tests/mcp/run-tests.mjs"
+    "test": "node --test 'tests/unit/**/*.test.ts' 'tests/snapshots/**/*.test.ts' 'tests/regression/**/*.test.ts'",
+    "test:unit": "node --test 'tests/unit/**/*.test.ts'",
+    "test:snapshots": "node --test 'tests/snapshots/**/*.test.ts'",
+    "test:regression": "node --test 'tests/regression/**/*.test.ts'",
+    "brief": "node bin/priors.js brief --project-root \"$PWD\"",
+    "mcp": "node bin/priors.js mcp --project-root \"$PWD\""
   },
   "files": [
     "AGENTS.md",
     "README.md",
+    "SECURITY.md",
     "LICENSE",
     "bin/",
     "docs/",
-    "src/",
-    "tests/mcp/"
+    "src/"
   ],
   "keywords": [
     "mcp",
     "model-context-protocol",
     "agents",
     "memory",
+    "project-memory",
+    "claude-code",
+    "cursor",
+    "codex",
     "harness"
   ],
   "repository": {
