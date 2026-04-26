@@ -1,12 +1,5 @@
 # Priors
 
-<p align="center">
-  <a href="#install"><img src="https://img.shields.io/badge/MCP-Compatible-000000?style=for-the-badge&logo=anthropic&logoColor=white" alt="MCP"></a>
-  <a href="#install"><img src="https://img.shields.io/badge/Local--first-CLI-1E90FF?style=for-the-badge" alt="Local-first"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-3DA639?style=for-the-badge" alt="License: MIT"></a>
-  <a href="#status"><img src="https://img.shields.io/badge/Status-v1-blueviolet?style=for-the-badge" alt="Status: v1"></a>
-</p>
-
 > Records why a project moves the way it does, so the next agent inherits its shape without being told.
 
 Priors is a typed, project-scoped log of decisions, dead ends, constraints, and open questions. Written by the agents working on a project, curated by you, readable by whoever (or whatever) shows up next. A fresh Claude Code session reads the brief and gets oriented in seconds. A new teammate reads the same file. The store lives in your repo as plain markdown plus YAML plus JSON. Open it in any text editor. Diff it in git.
