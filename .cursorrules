@@ -1,6 +1,19 @@
-# Worklog GitHub + DevOps Guardrails
+# Priors v1 — Cursor rules
 
-This repository ships an MCP server. Favor stable automation and small reviewable changes.
+This repository ships an MCP server and CLI for **Priors v1**: a project-record memory system. Read `AGENTS.md` first; it is the operating contract. Cursor-specific operational notes follow.
+
+## The framing test
+
+The persistent subject is the **project**, not the user and not the AI. If you are tempted to add user preferences, identity, psychology, or user-shaped retrieval, stop — that belongs to a different category of product. See `docs/project-brief.md` § "Why this is a different category".
+
+## Source of truth (read in order)
+
+1. `AGENTS.md` — operating contract.
+2. `docs/project-brief.md` — positioning.
+3. `docs/specs/brief-resource.md` — locked spec for `priors://brief`.
+4. `docs/specs/staged-distillation.md` — locked spec for `stage_learning`.
+
+If any rule in this file conflicts with the above, the above wins.
 
 ## Branching strategy
 
@@ -14,24 +27,16 @@ This repository ships an MCP server. Favor stable automation and small reviewabl
 
 ## Commits
 
-- Use Conventional Commits:
-  - `feat:`
-  - `fix:`
-  - `chore:`
-  - `docs:`
-  - `test:`
-  - `refactor:`
-  - `ci:`
-- Prefer small commits with clear intent.
+Use Conventional Commits: `feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`, `ci:`. Prefer small commits with clear intent.
 
 ## Pull requests
 
 - Open a PR for every branch merged into `main`.
-- PR title should follow Conventional Commit format when possible.
-- PR description must include:
+- PR title follows Conventional Commit format when possible.
+- PR description includes:
   - why this change exists
   - what changed
-  - test evidence (`npm test` output summary)
+  - test evidence (`npm test` summary)
   - risk/rollback notes when behavior changed
 - Keep PRs small enough to review in under 20 minutes when practical.
 
@@ -41,27 +46,61 @@ This repository ships an MCP server. Favor stable automation and small reviewabl
 - Do not merge if CI fails.
 - If CI fails, fix in the same branch before requesting review again.
 
-## Release and tags
+## Releases and tags
 
-- Create a release only for meaningful shipped milestones.
 - Tag from `main` after PR merge using semver:
   - `v0.x.y` while pre-1.0
-  - `v1.x.y+` after stable API contract
-- Version bump guidance:
-  - patch (`x.y.Z`): bug fixes, no API break
-  - minor (`x.Y.z`): new backward-compatible functionality
-  - major (`X.y.z`): breaking behavior or contract changes
-- Release notes should summarize user-visible behavior and migration steps.
+  - `v1.x.y+` after stable v1 contract
+- Patch (`x.y.Z`): bug fixes, no API break.
+- Minor (`x.Y.z`): backward-compatible feature.
+- Major (`X.y.z`): breaking change.
+- The legacy v0.3 implementation is preserved at the tag `legacy/v0.3.0`.
+
+## v1 non-negotiables (drawn from AGENTS.md)
+
+These are absolute. Any change that breaks one is rejected:
+
+1. The subject is the project — never the user, never the AI.
+2. Curation is the product. Define unit, capture trigger, admission criteria, update behavior, decay behavior, conflict behavior, deletion behavior, evidence requirement, user review surface for every memory feature.
+3. Progressive disclosure: brief → search/index → timeline → full entry → audit.
+4. **Quote, or refuse.** Every staged claim must be supported by a verbatim quote, verified by code substring match. No exceptions.
+5. **Stage, never commit.** Distillation only writes to `staged/`. The user is the only path to `entries/`.
+6. **The brief is deterministic.** Two runs against the same store produce byte-identical output. No LLM call inside the assembler.
+7. ID is canonical, path is incidental. Identity is the UUID in `.priors/project.json`.
+8. Local-first, file-based. No database, no vector store, no embeddings, no daemon, no cloud.
+9. Idempotency keys on every write tool.
+10. Failures are first-class data.
+
+## What is OUT in v1 (do not add without explicit user request and a new spec doc)
+
+- Decay scoring / activation / helpful-harmful counters
+- Auto-distillation hooks (manual `priors stage` only)
+- `emit_constraint` (deferred to v2)
+- Multi-project / team-shared store
+- Web UI / dashboard
+- Vector store / embedding-based search
+- Cloud sync
+- Background daemons of any kind
 
 ## MCP-specific safety
 
-- Keep runtime dependency count at zero unless explicitly approved.
-- Validate all tool inputs strictly and preserve path-traversal protections.
+- Keep runtime dependency count at zero. Dev-only types are fine.
+- Validate all tool inputs strictly. Use `additionalProperties: false` on every object schema.
+- Reject path traversal on entry IDs, transcript paths, and resource URIs.
+- Append JSONL audit records on every write/link/mark-stale/import.
 - Do not introduce shell interpolation in core server logic.
-- Maintain JSONL audit writes for write/verify/emission paths.
 
-## Agent execution defaults
+## Implementation defaults
 
-- If a task changes behavior, add/update tests in the same PR.
-- If changing protocol/tool schemas, update docs in `README.md` or `docs/`.
-- Avoid broad refactors mixed with feature delivery unless requested.
+- TypeScript on Node 25, importing `.ts` directly via Node's native type stripping. No build step.
+- Modules live under `src/<area>/`. Tests under `tests/<unit|regression>/`.
+- The CLI and MCP server share the same store/logic. Whatever changes in one, change in the other.
+- When you make a non-trivial implementation choice, **stage it as a Priors entry** in this repo's own `.priors/` directory. Don't add stray planning documents.
+
+## Returning to legacy v0.3
+
+```bash
+git checkout legacy/v0.3.0
+```
+
+The pre-rejig MCP server (with `~/.priors`, decay scoring, `priors.reinforce`, `priors.emitConstraint`) is preserved at that tag.

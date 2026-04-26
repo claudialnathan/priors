@@ -7,7 +7,7 @@ coverage/
 .vscode/
 .mcp.json
 .cursor/
-.priors/
 dist/
 build/
 *.tsbuildinfo
+cln-w.md

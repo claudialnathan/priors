@@ -22,7 +22,10 @@ jobs:
           node-version: '25'
 
       - name: Verify CLI
-        run: node bin/priors-mcp.js --version
+        run: node bin/priors.js --help > /dev/null
 
       - name: Run tests
         run: npm test
+
+      - name: Run regression evals
+        run: node bin/priors.js evals

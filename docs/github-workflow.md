@@ -99,9 +99,21 @@ Configure branch protection for `main` in GitHub settings:
 
 This is the real guardrail that prevents accidental direct pushes.
 
-## MCP-specific repo standards
+## MCP-specific repo standards (v1)
 
-- Keep runtime dependencies at zero unless intentionally approved.
-- Preserve strict input validation and path traversal protections.
-- Keep audit trail behavior intact for write/verify/emission operations.
-- Update docs/tests when protocol or behavior changes.
+- Keep runtime dependencies at zero unless intentionally approved. The runtime imports `.ts` directly via Node 25 type stripping; dev-only types are fine.
+- Preserve strict input validation and path traversal protections (`additionalProperties: false` on every MCP schema; resource IDs match `^[a-z0-9-]+$`).
+- Keep audit trail behavior intact: every write, link, mark-stale, distillation reject, and import appends to `.priors/audit/actions.log` (JSONL).
+- Preserve the quote-or-refuse rule in `stage_learning`. Verification is enforced in code (substring match), not in prompt text.
+- The brief is deterministic. Two runs against the same store produce byte-identical output. Snapshot tests in `tests/snapshots/brief/` enforce this.
+- Update docs and tests in the same PR when protocol or behavior changes.
+
+## Returning to the legacy v0.3 implementation
+
+The pre-rejig MCP server (with `~/.priors`, decay scoring, `priors.reinforce`, `priors.emitConstraint`) is preserved at the tag `legacy/v0.3.0`:
+
+```bash
+git checkout legacy/v0.3.0
+```
+
+It is not maintained on `main`/`reval`.
