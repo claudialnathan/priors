@@ -4,7 +4,7 @@
 
 Most harness memory treats the agent as the protagonist. Priors inverts this: the project's trajectory is primary. Transient agents simply read from and append to a typed log of decisions, constraints, and dead-ends living right in your repository.
 
-The store lives in `.priors/` as plain Markdown, YAML, and JSON. No daemon, no database and no cloud account. You edit it like any other folder, diff it in gid and ship it with the code. Fresh sessions inherit the codebase's context without burning tokens to replay history.
+The store lives in `.priors/` as plain Markdown, YAML, and JSON. No daemon, no database and no cloud account. You edit it like any other folder, diff it in git and ship it with the code. Fresh sessions inherit the codebase's context without burning tokens to replay history.
 
 Priors tracks what the repo knows about its own history using the MCP wire-up you already have. Reference clients include [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Cursor](https://cursor.com), and the [Codex CLI / OpenAI Agents SDK](https://github.com/openai/openai-agents-python), but any MCP client can read and write the same files.
 
