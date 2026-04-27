@@ -69,7 +69,7 @@ To verify Priors is wired up, ask the agent:
 > Read `priors://brief` and summarize the project trajectory in three lines.
 
 If the brief loads, the integration works. The first thing every Priors-aware
-agent should do in a session is read this resource — see [`AGENTS.md`](../AGENTS.md).
+agent should do in a session is read this resource.
 
 ---
 

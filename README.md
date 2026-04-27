@@ -257,35 +257,24 @@ conservative staged distillation. (priors-20260301-v1-scope)
 
 **Deferred:** decay or helpful/harmful scores; auto-distillation hooks; `emit_constraint`; shared multi-project store; web UI; semantic search; hosted sync; daemons.
 
-Each deferral has notes in [`docs/project-brief.md`](docs/project-brief.md). PRs that smuggle deferred scope without a spec change go back to that doc.
-
-
-
-## Lineage (named)
-
-- **Reflexion (2023):** failure traces carry disproportionate signal.
-- **ACE (2025):** compress at capture time and you lose information you only miss later; filter at read time instead.
-- **ReasoningBank (NeurIPS 2026):** the gap between capturing a failure and curating it for reuse.
-- **AI Index 2026:** belief-vs-fact reframing as a concrete retrieval risk.
-- **Foundation Model Transparency Index:** year-on-year opacity drop motivates a user-owned, inspectable layer.
+Deferred items are intentionally outside the current package behavior. Feature requests should start with the use case, the proposed surface, and the compatibility risk.
 
 
 ## Docs
 
-| Doc                                                                      | Role                                                 |
-| ------------------------------------------------------------------------ | ---------------------------------------------------- |
-| [`AGENTS.md`](AGENTS.md)                                                 | Contract for any agent operating in this repository. |
-| [`docs/project-brief.md`](docs/project-brief.md)                         | Positioning, audiences, deferred-feature rationale.  |
-| [`docs/specs/brief-resource.md`](docs/specs/brief-resource.md)           | Locked rules for the `priors://brief` generation.    |
-| [`docs/specs/staged-distillation.md`](docs/specs/staged-distillation.md) | Staging, quotes, and verification mechanics.         |
-| [`docs/integrations.md`](docs/integrations.md)                           | MCP client wiring instructions.                      |
-| [`docs/evals.md`](docs/evals.md)                                         | Regression suite layout and scoring.                 |
+| Doc                                                                      | Role                                              |
+| ------------------------------------------------------------------------ | ------------------------------------------------- |
+| [`docs/integrations.md`](docs/integrations.md)                           | MCP client wiring instructions.                   |
+| [`docs/mcp-architecture.md`](docs/mcp-architecture.md)                   | Runtime architecture and CLI/MCP surface details. |
+| [`docs/specs/brief-resource.md`](docs/specs/brief-resource.md)           | Rules for `priors://brief` generation.            |
+| [`docs/specs/staged-distillation.md`](docs/specs/staged-distillation.md) | Staging, quotes, and verification mechanics.      |
+| [`docs/evals.md`](docs/evals.md)                                         | Regression suite layout and scoring.              |
 
 
 
 ## Status
 
-v1 implementation is active. Specs above are locked; the regression suite is the release gate. This repo dogfoods its own `.priors/` folder as it ships.
+v1 is active. The specs linked above are locked; the regression suite is the release gate.
 
 
 
@@ -298,15 +287,7 @@ npm install
 npm test
 ```
 
-Read [`AGENTS.md`](AGENTS.md) before submitting a PR. The rules there map to concrete failure modes in the brief and specs.
-
-Feature requests for deferred items: open an issue first; argue from [`docs/project-brief.md`](docs/project-brief.md).
-
-
-
-## The Bar
-
-Give a fresh agent only `.priors/` and no chat history. On held-out tasks, its first actions should match the constraints the team already recorded. If the store does not move that needle, it is just decoration.
+Before opening a PR, run the tests and keep the change scoped. For behavior changes, update the relevant docs and tests in the same PR.
 
 
 
