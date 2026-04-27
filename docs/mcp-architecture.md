@@ -2,7 +2,7 @@
 
 Priors v1 is an MCP-first local tool. The MCP server and the CLI both call into the same store/logic; whichever surface you change, change the other.
 
-For positioning, see [`project-brief.md`](project-brief.md). For the locked surface specs, see [`specs/brief-resource.md`](specs/brief-resource.md) and [`specs/staged-distillation.md`](specs/staged-distillation.md). For the operating contract, see `../AGENTS.md`.
+For product overview and installation, see [`../README.md`](../README.md). For the locked surface specs, see [`specs/brief-resource.md`](specs/brief-resource.md) and [`specs/staged-distillation.md`](specs/staged-distillation.md).
 
 ## Components
 
@@ -88,7 +88,7 @@ Dropped candidates are appended to `audit/distillation-rejects.log` with the rej
 
 - The assembler reads `indexes/all.json` and applies the per-section ranking rules in [`specs/brief-resource.md`](specs/brief-resource.md#assembly-logic).
 - Each section has a token budget. If a section overflows, items are dropped per the spec's overflow policy. The brief never globally re-truncates.
-- Tokens are counted with a simple character-based approximation (`ceil(chars / 4)` for English). This is conservative and dependency-free; the v1 store doesn't depend on a tokenizer library. See `src/util/tokens.ts` and the constraint entry in `.priors/entries/constraints/`.
+- Tokens are counted with a simple character-based approximation (`ceil(chars / 4)` for English). This is conservative and dependency-free; the v1 store doesn't depend on a tokenizer library. See `src/util/tokens.ts`.
 
 ## Idempotency
 
@@ -128,10 +128,10 @@ The CLI mirrors the MCP surface one-to-one:
 |---|---|---|
 | `priors.init` tool | `priors init` CLI | Initialization is local to the project; not an MCP write. |
 | `priors.recall` | `recall` | Same name, simpler signature. No decay/uncertainty gating. |
-| `priors.reinforce` | (removed) | Activation/decay deferred per `docs/project-brief.md`. |
+| `priors.reinforce` | (removed) | Activation/decay is deferred from v1. |
 | `priors.writeEntry` | `commit_learning` (only via `staged_id`) | No direct active write path. Every active entry comes from a staged candidate. |
 | `priors.distill` + `priors.verifyProposals` + `priors.commitProposals` | `stage_learning` + `commit_learning` | Two stages instead of three. Verification is part of staging, not separate. |
-| `priors.emitConstraint` + `priors.applyEmission` | (removed) | Deferred to v2; see `docs/project-brief.md`. |
+| `priors.emitConstraint` + `priors.applyEmission` | (removed) | Deferred from v1. |
 | `~/.priors/projects/<repo-id>/` neutral store | `<project-root>/.priors/` in-repo store | The store travels with the repo. |
 | `priors://orientation/head` | `priors://brief` | Shorter, deterministic, bounded. |
 | `priors://operator`, `priors://state`, `priors://compiled/...` | (removed) | The brief is the single orientation surface. |

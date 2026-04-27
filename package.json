@@ -18,12 +18,14 @@
     "mcp": "node bin/priors.js mcp --project-root \"$PWD\""
   },
   "files": [
-    "AGENTS.md",
     "README.md",
     "SECURITY.md",
     "LICENSE",
     "bin/",
-    "docs/",
+    "docs/evals.md",
+    "docs/integrations.md",
+    "docs/mcp-architecture.md",
+    "docs/specs/",
     "src/"
   ],
   "keywords": [

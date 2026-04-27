@@ -2,7 +2,7 @@
 
 **Status**: design proposal for v1
 **Owner**: Priors core
-**Related**: `AGENTS.md`, `spec-brief-resource.md`, `project-brief.md`
+**Related**: `../mcp-architecture.md`, `brief-resource.md`
 
 ## Purpose
 

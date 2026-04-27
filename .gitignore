@@ -1,4 +1,7 @@
+# Maintainer-only drafts and notes (not part of the public package contract).
 internal/
+docs/project-brief.md
+docs/github-workflow.md
 .claude/settings.local.json
 .claude.local.md
 node_modules/
