@@ -26,7 +26,7 @@ and asserts on observable behavior. No task depends on shared state.
 | `fresh_agent_handoff`  | The brief is bounded, deterministic, and orienting on a small fixture.        |
 | `dead_end_recall`      | `recall(kind: failure)` surfaces dead ends; the brief includes their reasons. |
 | `mark_stale_flow`      | `mark_stale` flips status, hides the entry from the brief, and shows up in `recall(status: stale)`. |
-| `conflict_contested`   | `link_entries(contradicts)` sets both entries to `contested` and the brief surfaces the pair. |
+| `conflict_contested`   | `link_entries(contradiction_of)` sets both entries to `contested` and the brief surfaces the pair. |
 | `distillation_safety`  | `stage_learning` rejects fabricated quotes via the verbatim substring check.  |
 | `emission_deferred`    | `emit_constraint` is **not** in `tools/list` and a direct call returns an error. |
 | `cross_client`         | Exporting from one store and importing into another, then reading via the MCP server, yields the same entries. |

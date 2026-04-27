@@ -14,7 +14,7 @@ Priors tracks what the repo knows about its own history using the MCP wire-up yo
 
 **Winning answers aren't enough.** Stop at _we chose X_ and you drop the failures, rejected forks, and revisit dates—guaranteeing the next agent will hallucinate its way down the exact same dead end. Priors entries carry a `kind` (`decision`, `failure`, `constraint`, `pattern`, `question`). Agents can pull rejected approaches or stale markers without flooding their context window.
 
-**Tension is data.** If you log only the final answer, you bury the fork you rejected. Priors keeps both sides. `link_entries(source_id, contradicts, target_id)` marks both as `contested` and the brief lists them together. Query the tension instead of deleting it.
+**Forks are trajectory evidence.** If you only log the final output, you're burying the reasoning behind the rejected path. Priors preserves both: `link_entries (source_id, contradiction_of, target_id)` flags them as `contested` so they are retrieved together. Analyze the conflict instead of overwriting it.
 
 ## What you get
 
@@ -29,7 +29,7 @@ Priors tracks what the repo knows about its own history using the MCP wire-up yo
 </tr>
 <tr>
   <td><b>Staged Promotion</b></td>
-  <td><code>stage_learning</code> / <code>priors stage</code> writes candidates to <code>staged/</code> only. Each claim requires a verbatim quote verified by a substring match in the code. You promote with <code>commit_learning</code> / <code>priors commit</code>. Nothing auto-lands in <code>entries/</code>.</td>
+  <td><code>stage_learning</code> / <code>priors stage</code> writes candidates to <code>staged/</code> only. Each claim requires a verbatim quote verified by a substring match plus a Dice-coefficient grounding floor. Edit before commit with <code>edit_staged</code>; drop with <code>discard_staged</code>. Promote with <code>commit_learning</code> / <code>priors commit</code>. Nothing auto-lands in <code>entries/</code>.</td>
 </tr>
 <tr>
   <td><b>Visible Conflict</b></td>
@@ -50,11 +50,12 @@ Priors tracks what the repo knows about its own history using the MCP wire-up yo
 ```text
 .priors/
   project.json          UUID, name, created_at
+  config.json           groundingMode (strict|warn), commitThreshold
   entries/              active entries by kind
     decisions/  failures/  constraints/  patterns/  questions/
   staged/               candidates awaiting promotion
   indexes/all.json      regenerated on write
-  audit/                append-only log of mutations
+  audit/                append-only logs: actions, distillation-rejects, curation
   exports/              output from `priors export`
   brief.md              from `priors brief`
   log.md                chronological trace
@@ -111,26 +112,122 @@ node bin/priors.js init --project-root .
 
 ## Commands
 
-```bash
-priors init
-priors brief
-priors stage --source-kind transcript --source-ref ./session.log --source-content @./session.log
-priors commit <staged_id>
-priors recall --query "rls"
-priors recall --kind failure
-priors recall --status contested
-priors get <id>
-priors link <source_id> contradicts <target_id>
-priors mark-stale <id> --reason "superseded by newer entry"
-priors export --destination ./export-pack
-priors import ./export-pack              # dry-run (default)
-priors import ./export-pack --apply      # write
-priors audit <id>
-priors index
-priors health
-priors evals
-priors mcp                               # stdio MCP server for clients
-```
+<table>
+<tr>
+  <td colspan="2"><b>Setup</b></td>
+</tr>
+<tr>
+  <td><code>priors init</code></td>
+  <td>Scaffold <code>.priors/</code>, mint the project UUID, and print the MCP config snippet.</td>
+</tr>
+<tr>
+  <td colspan="2"><b>Read</b></td>
+</tr>
+<tr>
+  <td><code>priors brief</code></td>
+  <td>Print the deterministic orientation document &mdash; IDs and one-line summaries for active entries.</td>
+</tr>
+<tr>
+  <td><code>priors recall --query "rls"</code></td>
+  <td>Plain-text search over the index. Combine with <code>--kind</code>, <code>--status</code>, <code>--confidence</code>, <code>--as-of-after</code>, <code>--as-of-before</code>, <code>--limit</code>.</td>
+</tr>
+<tr>
+  <td><code>priors recall --kind failure</code></td>
+  <td>Filter by entry kind: <code>decision</code>, <code>failure</code>, <code>constraint</code>, <code>pattern</code>, <code>question</code>, <code>hypothesis</code>.</td>
+</tr>
+<tr>
+  <td><code>priors recall --status contested</code></td>
+  <td>Surface entries flagged contested by a <code>contradiction_of</code> link.</td>
+</tr>
+<tr>
+  <td><code>priors get &lt;id&gt;</code></td>
+  <td>Show the full body, frontmatter, and incoming edges for one entry.</td>
+</tr>
+<tr>
+  <td><code>priors audit &lt;id&gt;</code></td>
+  <td>Show the audit-log slice mentioning an entry id, newest first.</td>
+</tr>
+<tr>
+  <td><code>priors audit curation --since 2026-04-01</code></td>
+  <td>Read <code>audit/curation.log</code> for staging and edge-proposal events. Combine with <code>--kind</code> and <code>--source-model</code>.</td>
+</tr>
+<tr>
+  <td><code>priors index</code></td>
+  <td>Print <code>indexes/all.json</code> (regenerates if missing).</td>
+</tr>
+<tr>
+  <td colspan="2"><b>Staging lifecycle</b></td>
+</tr>
+<tr>
+  <td><code>priors stage --source-kind transcript --source-ref ./session.log --source-content @./session.log</code></td>
+  <td>Verify up to 5 candidate lessons against source content (verbatim substring + Dice-coefficient grounding floor) and write survivors to <code>staged/</code>. Rejects logged to <code>audit/distillation-rejects.log</code>.</td>
+</tr>
+<tr>
+  <td><code>priors edit-staged &lt;staged_id&gt; --claim "..." --confidence medium</code></td>
+  <td>Modify a staged candidate before commit. Evidence is immutable; pre- and post-edit payloads are recorded on the curation event.</td>
+</tr>
+<tr>
+  <td><code>priors discard &lt;staged_id&gt; --rationale "duplicate of &lt;id&gt;"</code></td>
+  <td>Drop a staged candidate without committing. Original payload preserved on the curation event.</td>
+</tr>
+<tr>
+  <td><code>priors commit &lt;staged_id&gt;</code></td>
+  <td>Promote a staged entry to active. Optionally gated by <code>commitThreshold</code> in <code>config.json</code> against the composite quality score.</td>
+</tr>
+<tr>
+  <td colspan="2"><b>Edges &amp; status</b></td>
+</tr>
+<tr>
+  <td><code>priors link &lt;source_id&gt; contradiction_of &lt;target_id&gt;</code></td>
+  <td>Direct write of a typed edge. Vocabulary (capped at 8): <code>supersedes</code>, <code>contradiction_of</code>, <code>derived_from</code>, <code>reinforces</code>, <code>caused_by</code>, <code>blocks</code>, <code>depends_on</code>, <code>refutes</code>.</td>
+</tr>
+<tr>
+  <td><code>priors propose-edge &lt;source_id&gt; caused_by &lt;target_id&gt; --rationale "..."</code></td>
+  <td>Record an LLM-proposed edge <i>without</i> creating it. Emits a <code>propose_edge</code> curation event only; returns a <code>proposal_id</code>.</td>
+</tr>
+<tr>
+  <td><code>priors commit-edge &lt;proposal_id&gt; &lt;source_id&gt; caused_by &lt;target_id&gt;</code></td>
+  <td>Accept a proposed edge. Calls <code>link_entries</code> internally and emits <code>accept_edge</code>.</td>
+</tr>
+<tr>
+  <td><code>priors discard-edge &lt;proposal_id&gt; &lt;source_id&gt; caused_by &lt;target_id&gt;</code></td>
+  <td>Drop a proposed edge without creating it. Emits <code>discard_edge</code>.</td>
+</tr>
+<tr>
+  <td><code>priors mark-stale &lt;id&gt; --reason "superseded by newer entry"</code></td>
+  <td>Flag an entry as stale &mdash; soft state, distinct from <code>superseded</code>.</td>
+</tr>
+<tr>
+  <td colspan="2"><b>Movement &amp; maintenance</b></td>
+</tr>
+<tr>
+  <td><code>priors export --destination ./export-pack</code></td>
+  <td>Write a portable pack of active entries.</td>
+</tr>
+<tr>
+  <td><code>priors import ./export-pack</code></td>
+  <td>Read a pack. Dry-run by default; pass <code>--apply</code> to write, <code>--overwrite</code> to replace conflicts.</td>
+</tr>
+<tr>
+  <td><code>priors migrate-relations --dry-run</code></td>
+  <td>One-shot rewrite of legacy <code>contradicts</code> relation keys to <code>contradiction_of</code> via raw-YAML manipulation.</td>
+</tr>
+<tr>
+  <td><code>priors health</code></td>
+  <td>Run integrity checks across the store; <code>--fix</code> applies safe repairs.</td>
+</tr>
+<tr>
+  <td><code>priors evals</code></td>
+  <td>Run the v1 regression suite.</td>
+</tr>
+<tr>
+  <td colspan="2"><b>Server</b></td>
+</tr>
+<tr>
+  <td><code>priors mcp</code></td>
+  <td>Start the stdio MCP server for clients.</td>
+</tr>
+</table>
 
 The CLI exactly matches the MCP tool surface: agents and humans hit the same code paths.
 
@@ -226,7 +323,7 @@ conservative staged distillation. (priors-20260301-v1-scope)
 
 - **Project-scoped records:** Entries describe the codebase and the calls around it, not operator psychology. No `user.json`, no preference blobs, no identity claims.
 - **Deterministic brief:** Assembler code only. Two runs on the same store must match byte for byte; tests lock that in.
-- **Quote or refuse:** Staging checks every claim against a literal substring of the source. Failures log to `audit/distillation-rejects.log`.
+- **Quote or refuse:** Staging checks every claim against a literal substring of the source and a deterministic Dice-coefficient grounding floor (configurable as strict/warn). Failures log to `audit/distillation-rejects.log`; lifecycle events go to `audit/curation.log`.
 - **Stage only:** Distillation never writes straight to `entries/`. Hooks may stage; they may not commit.
 - **Conflict stays queryable:** `contested` is a first-class status.
 - **Files win:** v1 excludes databases, vector stores, embeddings, background daemons, cloud sync, accounts.
@@ -235,7 +332,7 @@ conservative staged distillation. (priors-20260301-v1-scope)
 
 ## v1 boundary
 
-**Ships:** `.priors/` layout; MCP resources `priors://brief`, `priors://index`, `priors://entry/{id}`; tools `recall`, `get_entry`, `stage_learning`, `commit_learning`, `mark_stale`, `link_entries`; CLI parity; bounded deterministic brief; quoted staging; export/import with dry-run default; client setup docs; seven regression tasks.
+**Ships:** `.priors/` layout (incl. `audit/curation.log` and `config.json`); MCP resources `priors://brief`, `priors://index`, `priors://entry/{id}`, `priors://audit/{id}`; tools `recall`, `get_entry`, `stage_learning`, `edit_staged`, `discard_staged`, `commit_learning`, `mark_stale`, `link_entries`, `propose_edge`, `commit_edge`, `discard_edge`; CLI parity; bounded deterministic brief; quoted staging with Dice-coefficient grounding floor and composite quality score; 8-relation typed edge vocabulary; export/import with dry-run default; client setup docs; seven regression tasks.
 
 **Deferred:** decay or helpful/harmful scores; auto-distillation hooks; `emit_constraint`; shared multi-project store; web UI; semantic search; hosted sync; daemons.
 

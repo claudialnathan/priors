@@ -24,6 +24,7 @@ Priors stores its state in `<project-root>/.priors/`:
 ```text
 .priors/
   project.json          # { id (UUID), name, created_at }
+  config.json           # { groundingMode: "strict" | "warn", commitThreshold: number }
   entries/
     decisions/
     failures/
@@ -37,6 +38,7 @@ Priors stores its state in `<project-root>/.priors/`:
   audit/
     actions.log         # JSONL: writes, links, marks, imports
     distillation-rejects.log  # candidates that failed verification
+    curation.log        # JSONL: typed staging/edge events (propose, stage, edit, accept, reject, discard, propose_edge, accept_edge, discard_edge)
   exports/
   brief.md              # written by `priors brief`
   log.md                # chronological state
@@ -51,17 +53,25 @@ Priors stores its state in `<project-root>/.priors/`:
 - `priors://brief` — bounded markdown orientation document. Always assembled fresh from `indexes/all.json`. ≤ 2,000 tokens. See [`specs/brief-resource.md`](specs/brief-resource.md).
 - `priors://index` — full `indexes/all.json` content (JSON).
 - `priors://entry/{id}` — full entry body + frontmatter for the entry with that ID. Resolved through the index, not the file path.
+- `priors://audit/{id}` — filtered audit-log slice for a single entry id, newest first (JSON).
 
 ### Tools
 
 | Tool | Input | Output |
 |---|---|---|
 | `recall` | `query`, optional `kind`/`status`/`confidence`/`as_of_after`/`as_of_before`/`relation`/`limit` | `{ matches: [{ id, kind, claim, status, confidence, as_of, updated_at }] }` |
-| `get_entry` | `id` | `{ entry: <full entry> }` |
-| `stage_learning` | `source_kind`, `source_ref`, `source_content`, `project_id`, optional `candidates`, `existing_entries`, `prompt_context`, `client_request_id` | If `candidates` omitted: `{ prompt: <rendered system prompt>, instruction: "produce candidates and call back" }`. If provided: `{ staged: [...], rejected: [...], audit_id }`. |
-| `commit_learning` | `staged_id`, `client_request_id` | `{ entry_id, audit_id }` |
+| `get_entry` | `id` | `{ entry: <full entry>, incoming_edges: [...] }` |
+| `stage_learning` | `source_kind`, `source_ref`, `source_content`, `project_id`, optional `candidates`, `existing_entries`, `prompt_context`, `source_model`, `client_request_id` | If `candidates` omitted: `{ prompt: <rendered system prompt>, instruction: "produce candidates and call back" }`. If provided: `{ staged: [...], rejected: [...], audit_id }`. |
+| `edit_staged` | `staged_id`, optional `claim`/`confidence`/`tags`/`body`/`rationale`/`source_model`/`client_request_id` | `{ staged_id, audit_id }` (evidence is immutable; pre/post payloads written to `curation.log`) |
+| `discard_staged` | `staged_id`, optional `rationale`/`source_model`/`client_request_id` | `{ staged_id, audit_id }` (original payload preserved in the `discard` event) |
+| `commit_learning` | `staged_id`, optional `source_model`, `client_request_id` | `{ entry_id, audit_id }` (rejected with `below_threshold` if the composite score is under `commitThreshold`) |
 | `mark_stale` | `id`, `reason`, `client_request_id` | `{ entry_id, audit_id }` |
-| `link_entries` | `source_id`, `relation` (`supersedes`/`contradicts`/`reinforces`/`derived_from`), `target_id`, `client_request_id` | `{ source_id, target_id, relation, audit_id }` |
+| `link_entries` | `source_id`, `relation` (`supersedes`/`contradiction_of`/`derived_from`/`reinforces`/`caused_by`/`blocks`/`depends_on`/`refutes`), `target_id`, `client_request_id` | `{ source_id, target_id, relation, audit_id }` |
+| `propose_edge` | `source_id`, `relation` (same vocab), `target_id`, optional `proposal_id`/`source_model`/`source_ref`/`rationale`/`client_request_id` | `{ proposal_id, audit_id }` — does not create the edge; emits a `propose_edge` event only |
+| `commit_edge` | `proposal_id`, `source_id`, `relation`, `target_id`, optional `source_model`/`source_ref`/`rationale`/`client_request_id` | `{ source_id, target_id, relation, audit_id }` — calls `link_entries` internally and emits `accept_edge` |
+| `discard_edge` | `proposal_id`, `source_id`, `relation`, `target_id`, optional `rationale`/`source_model`/`client_request_id` | `{ proposal_id, audit_id }` — emits `discard_edge`; edge state unchanged |
+
+The 8-relation vocabulary is capped: a ninth requires removing one. Only `supersedes` and `contradiction_of` mutate target status (`superseded` and `contested` respectively); the other six are pure links. Self-links and `supersedes` cycles are rejected.
 
 Every tool input schema has `additionalProperties: false`. Every tool returns both `structuredContent` and a textual `content[0].text` rendering for clients that don't consume typed output.
 
@@ -74,13 +84,15 @@ Every tool input schema has `additionalProperties: false`. Every tool returns bo
 `stage_learning` is the riskiest correctness surface. It enforces "quote, or refuse" deterministically:
 
 1. **Schema validation** — candidate JSON must conform to the schema in `docs/specs/staged-distillation.md`.
-2. **Quote presence** — every `evidence.quote` must appear verbatim in `source_content` (case-sensitive, whitespace-tolerant). Failures drop the candidate.
-3. **Forbidden kinds** — any candidate that targets user preference, identity, or psychology is dropped.
-4. **Length bounds** — `claim` ≤ 280 chars, `reasoning` ≤ 600 chars, `evidence` between 1 and 5 quotes per candidate.
-5. **Confidence sanity** — high confidence candidates must have substring overlap between the strongest quote and the claim.
-6. **Deduplication** — claims >80% similar to an active entry's claim convert to a `relations.reinforces` link rather than a new candidate.
+2. **Quote presence** — every `evidence.quote` must appear verbatim in `source_content` (case-sensitive, whitespace-tolerant). Failures drop the candidate. Always fails closed regardless of `groundingMode`.
+3. **Grounding floor** — claim↔evidence Dice-coefficient overlap must be ≥ `0.15` (tokens shorter than 4 chars stripped). `groundingMode: "strict"` (default) rejects with `ungrounded_claim`; `groundingMode: "warn"` stages with a `grounding_warning` flag and `unsupported_substrings` recorded on the curation event.
+4. **Forbidden kinds** — any candidate that targets user preference, identity, or psychology is dropped.
+5. **Length bounds** — `claim` ≤ 280 chars, `reasoning` ≤ 600 chars, `evidence` between 1 and 5 quotes per candidate.
+6. **Confidence sanity** — high confidence candidates must have substring overlap between the strongest quote and the claim.
+7. **Deduplication** — claims >80% similar to an active entry's claim convert to a `relations.reinforces` link rather than a new candidate.
+8. **Composite quality score** — six deterministic sub-scores (`schema_ok`, `length_ok`, `forbidden_kind`, `evidence_count`, `transcript_support`, `duplicate_risk`) are aggregated as `min(...)`. The score is recorded on every `propose` and `reject` curation event. `commit_learning` rejects with `below_threshold` if the score is under `commitThreshold` (default `0.0`, which preserves prior behaviour). See `src/distill/score.ts`.
 
-Dropped candidates are appended to `audit/distillation-rejects.log` with the rejection reason. Verified candidates are written to `staged/` as YAML+markdown files.
+Dropped candidates are appended to `audit/distillation-rejects.log` with the rejection reason. Verified candidates are written to `staged/` as YAML+markdown files. Every step also emits a typed event to `audit/curation.log` (`propose`, `stage`, `reject`).
 
 ## Determinism: the brief
 
@@ -103,13 +115,22 @@ The CLI mirrors the MCP surface one-to-one:
 | `priors init` | (one-off; sets up `.priors/`) |
 | `priors brief` | `resources/read priors://brief` |
 | `priors recall <query>` | `tools/call recall` |
-| `priors entry <id>` | `tools/call get_entry` |
+| `priors get <id>` | `tools/call get_entry` |
 | `priors stage` | `tools/call stage_learning` |
+| `priors edit-staged <staged_id> [...]` | `tools/call edit_staged` |
+| `priors discard <staged_id>` | `tools/call discard_staged` |
 | `priors commit <staged_id>` | `tools/call commit_learning` |
 | `priors mark-stale <id>` | `tools/call mark_stale` |
 | `priors link <source> <relation> <target>` | `tools/call link_entries` |
+| `priors propose-edge <source> <relation> <target>` | `tools/call propose_edge` |
+| `priors commit-edge <proposal_id> <source> <relation> <target>` | `tools/call commit_edge` |
+| `priors discard-edge <proposal_id> <source> <relation> <target>` | `tools/call discard_edge` |
+| `priors audit <id>` | `resources/read priors://audit/{id}` |
+| `priors audit curation [--since --kind --source-model]` | (CLI-only verb; reads `audit/curation.log`) |
 | `priors export <path>` | (CLI-only verb; produces a portable pack) |
 | `priors import <path>` | (CLI-only verb; default `--dry-run`) |
+| `priors index` | `resources/read priors://index` |
+| `priors migrate-relations [--dry-run]` | (CLI-only one-shot; rewrites legacy `contradicts` → `contradiction_of`) |
 | `priors health` | (CLI-only verb; integrity check) |
 | `priors evals` | (CLI-only verb; runs the regression suite) |
 | `priors mcp` | (starts MCP server over stdio) |
