@@ -13,7 +13,7 @@ Report security issues privately through GitHub repository security advisories. 
 - **Idempotency.** Every write tool (`stage_learning`, `commit_learning`, `mark_stale`, `link_entries`) accepts a `client_request_id`. Replays return the original result instead of duplicating writes.
 - **Audit trail.** Every write, link, mark-stale, distillation reject, and import is appended to `.priors/audit/actions.log` (JSONL). The audit file is append-only by convention.
 - **No auto-commit.** `stage_learning` and any future hook may only write to `staged/`. The path from `staged/` to `entries/` is `commit_learning`, which requires an explicit user action.
-- **No constraint emission in v1.** `emit_constraint` and `applyEmission` from the legacy v0.3 surface are removed in v1. They are deferred per `docs/project-brief.md`. Generating `.git/hooks/`, `.mcp.json`, or arbitrary executable artifacts from model output is explicitly out of scope.
+- **No constraint emission in v1.** `emit_constraint` and `applyEmission` from the legacy v0.3 surface are removed in v1. Generating `.git/hooks/`, `.mcp.json`, or arbitrary executable artifacts from model output is explicitly out of scope.
 - **Generated MCP client configs** pin the local Node executable (`process.execPath`) and the local CLI path. They do not generate `npx -y` configs that fetch remote code at runtime.
 - **Quote-or-refuse verification.** `stage_learning` rejects any candidate whose `evidence.quote` does not appear verbatim in the supplied source content. This is enforced in code, not in prompt instructions.
 

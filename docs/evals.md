@@ -2,7 +2,7 @@
 
 Priors ships a seven-task regression suite. The suite is the contract: if any
 task fails, the change is not done. The tasks come directly from the v1
-non-negotiables in [`AGENTS.md`](../AGENTS.md) and the project brief.
+safety boundaries described in the README and the public specs.
 
 The suite is exposed three ways:
 

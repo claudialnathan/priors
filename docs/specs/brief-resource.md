@@ -2,7 +2,7 @@
 
 **Status**: design proposal for v1
 **Owner**: Priors core
-**Related**: `AGENTS.md`, `spec-staged-distillation.md`, `project-brief.md`
+**Related**: `../mcp-architecture.md`, `staged-distillation.md`
 
 ## Purpose
 
@@ -228,7 +228,7 @@ No background daemon, no decay scoring, no emit-constraint in v1.
 7. **ID validity**: every ID in the brief resolves via `get_entry(id)`.
 8. **Drift tolerance**: adding a new entry only changes the brief in the section that entry belongs to (no global re-assembly side effects beyond intended).
 
-These are the snapshot tests AGENTS.md asks for. Without them, the brief is theater.
+These are the snapshot tests for the brief interface. Without them, the brief is theater.
 
 ## What this spec does not yet decide
 
