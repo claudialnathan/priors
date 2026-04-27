@@ -1,11 +1,11 @@
 import fs from "node:fs/promises";
-import { auditActionsLog, distillationRejectsLog } from "./paths.ts";
+import { auditActionsLog, curationLog, distillationRejectsLog } from "./paths.ts";
 import { isSafeId } from "../util/safe-path.ts";
 
 export interface AuditEvent {
   ts: string;
   action: string;
-  source: "actions" | "distillation_rejects";
+  source: "actions" | "distillation_rejects" | "curation";
   raw: Record<string, unknown>;
 }
 
@@ -25,6 +25,12 @@ export async function readDistillationRejectsLog(
   projectRoot: string,
 ): Promise<AuditEvent[]> {
   return readJsonl(distillationRejectsLog(projectRoot), "distillation_rejects");
+}
+
+export async function readCurationLog(
+  projectRoot: string,
+): Promise<AuditEvent[]> {
+  return readJsonl(curationLog(projectRoot), "curation");
 }
 
 async function readJsonl(

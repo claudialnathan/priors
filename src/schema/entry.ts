@@ -40,11 +40,33 @@ export const ENTRY_CONFIDENCES: readonly EntryConfidence[] = [
   "low",
 ] as const;
 
+/**
+ * Eight kinds of typed edge between entries. The vocabulary is bounded by
+ * design — adding a ninth kind requires removing one. Each kind has a
+ * one-line spec; if two kinds need a paragraph to differentiate, collapse
+ * them.
+ *
+ *   supersedes        — replaces the target; sets target.status to "superseded"
+ *   contradiction_of  — disagrees with the target; sets both to "contested"
+ *   derived_from      — follows from / is implied by the target
+ *   reinforces        — supports the target without proving it
+ *   caused_by         — was triggered by the target (causal antecedent)
+ *   blocks            — prevents the target from progressing or holding
+ *   depends_on        — requires the target to remain valid
+ *   refutes           — directly disproves the target's claim
+ *
+ * Status side-effects: only `supersedes` and `contradiction_of` mutate
+ * target status. The other six are pure links.
+ */
 export interface EntryRelations {
   supersedes: string[];
-  contradicts: string[];
-  reinforces: string[];
+  contradiction_of: string[];
   derived_from: string[];
+  reinforces: string[];
+  caused_by: string[];
+  blocks: string[];
+  depends_on: string[];
+  refutes: string[];
 }
 
 export interface EntryFrontmatter {
@@ -208,9 +230,13 @@ export function validateEntryFrontmatter(
 export function emptyRelations(): EntryRelations {
   return {
     supersedes: [],
-    contradicts: [],
-    reinforces: [],
+    contradiction_of: [],
     derived_from: [],
+    reinforces: [],
+    caused_by: [],
+    blocks: [],
+    depends_on: [],
+    refutes: [],
   };
 }
 
@@ -220,7 +246,16 @@ function normalizeRelations(raw: unknown): Validation<EntryRelations> {
     return err("relations must be an object");
   }
   const r = raw as Record<string, unknown>;
-  const allowed = ["supersedes", "contradicts", "reinforces", "derived_from"];
+  const allowed = [
+    "supersedes",
+    "contradiction_of",
+    "derived_from",
+    "reinforces",
+    "caused_by",
+    "blocks",
+    "depends_on",
+    "refutes",
+  ];
   const errors: string[] = [];
   for (const key of Object.keys(r)) {
     if (!allowed.includes(key)) errors.push(`unknown relations key: ${key}`);

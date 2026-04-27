@@ -55,7 +55,7 @@ const TASKS: TaskDef[] = [
   },
   {
     id: "conflict_contested",
-    name: "Conflict/contested: contradicts link sets both contested",
+    name: "Conflict/contested: contradiction_of link sets both contested",
     run: conflictContested,
   },
   {
@@ -142,9 +142,13 @@ async function seedEntry(
       updated_at: ts,
       relations: {
         supersedes: [],
-        contradicts: [],
-        reinforces: [],
+        contradiction_of: [],
         derived_from: [],
+        reinforces: [],
+        caused_by: [],
+        blocks: [],
+        depends_on: [],
+        refutes: [],
       },
       tags: fields.tags ?? [],
     },
@@ -220,9 +224,13 @@ async function writeFailureWithReason(
       updated_at: ts,
       relations: {
         supersedes: [],
-        contradicts: [],
-        reinforces: [],
+        contradiction_of: [],
         derived_from: [],
+        reinforces: [],
+        caused_by: [],
+        blocks: [],
+        depends_on: [],
+        refutes: [],
       },
       tags: fields.tags ?? [],
     },
@@ -286,11 +294,11 @@ async function conflictContested(): Promise<string> {
     });
     const link = await linkEntries(root, {
       source_id: "pri-eval-decision-3b",
-      relation: "contradicts",
+      relation: "contradiction_of",
       target_id: "pri-eval-decision-3a",
     });
     if (!link.contested_pair) {
-      throw new Error("contradicts link did not set contested_pair");
+      throw new Error("contradiction_of link did not set contested_pair");
     }
     const brief = await assembleBrief(root, { clock });
     if (!brief.text.toLowerCase().includes("contested")) {

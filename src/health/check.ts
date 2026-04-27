@@ -121,9 +121,13 @@ export async function runHealthCheck(
     }
     for (const rel of [
       "supersedes",
-      "contradicts",
-      "reinforces",
+      "contradiction_of",
       "derived_from",
+      "reinforces",
+      "caused_by",
+      "blocks",
+      "depends_on",
+      "refutes",
     ] as const) {
       for (const target of e.frontmatter.relations[rel]) {
         if (!ids.has(target)) {

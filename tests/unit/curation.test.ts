@@ -64,7 +64,7 @@ test("linkEntries with relation=supersedes flips target to superseded and is ide
   });
 });
 
-test("linkEntries with relation=contradicts flips both entries to contested and reciprocates", async () => {
+test("linkEntries with relation=contradiction_of flips both entries to contested and reciprocates", async () => {
   await withTempStore(async (root, clock) => {
     await seedEntry(root, clock, {
       id: "pri-a",
@@ -78,7 +78,7 @@ test("linkEntries with relation=contradicts flips both entries to contested and 
     });
     const result = await linkEntries(
       root,
-      { source_id: "pri-a", target_id: "pri-b", relation: "contradicts" },
+      { source_id: "pri-a", target_id: "pri-b", relation: "contradiction_of" },
       { clock },
     );
     assert.deepEqual(result.contested_pair, ["pri-a", "pri-b"]);
@@ -86,8 +86,8 @@ test("linkEntries with relation=contradicts flips both entries to contested and 
     const b = await findEntryById(root, "pri-b");
     assert.equal(a?.frontmatter.status, "contested");
     assert.equal(b?.frontmatter.status, "contested");
-    assert.deepEqual(a?.frontmatter.relations.contradicts, ["pri-b"]);
-    assert.deepEqual(b?.frontmatter.relations.contradicts, ["pri-a"]);
+    assert.deepEqual(a?.frontmatter.relations.contradiction_of, ["pri-b"]);
+    assert.deepEqual(b?.frontmatter.relations.contradiction_of, ["pri-a"]);
   });
 });
 

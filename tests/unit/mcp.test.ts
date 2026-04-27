@@ -92,7 +92,7 @@ test("initialize returns protocol version, server info, and capabilities", async
   });
 });
 
-test("tools/list returns all six v1 tools with input schemas", async () => {
+test("tools/list returns the v1 tools with input schemas", async () => {
   await withTempStore(async (root) => {
     const client = new McpClient(root);
     try {
@@ -100,10 +100,15 @@ test("tools/list returns all six v1 tools with input schemas", async () => {
       const result = res.result as { tools: Array<{ name: string; inputSchema: unknown }> };
       const names = result.tools.map((t) => t.name).sort();
       assert.deepEqual(names, [
+        "commit_edge",
         "commit_learning",
+        "discard_edge",
+        "discard_staged",
+        "edit_staged",
         "get_entry",
         "link_entries",
         "mark_stale",
+        "propose_edge",
         "recall",
         "stage_learning",
       ]);

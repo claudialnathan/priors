@@ -63,9 +63,13 @@ export function entryToFileText(entry: Entry): string {
     claim: fm.claim,
     relations: {
       supersedes: [...fm.relations.supersedes],
-      contradicts: [...fm.relations.contradicts],
-      reinforces: [...fm.relations.reinforces],
+      contradiction_of: [...fm.relations.contradiction_of],
       derived_from: [...fm.relations.derived_from],
+      reinforces: [...fm.relations.reinforces],
+      caused_by: [...fm.relations.caused_by],
+      blocks: [...fm.relations.blocks],
+      depends_on: [...fm.relations.depends_on],
+      refutes: [...fm.relations.refutes],
     },
     tags: [...fm.tags],
   };
@@ -177,6 +181,29 @@ export async function listEntries(
     a.frontmatter.id < b.frontmatter.id ? -1 : a.frontmatter.id > b.frontmatter.id ? 1 : 0,
   );
   return out;
+}
+
+/**
+ * Return entries that point at `targetId`, grouped by relation kind. Used
+ * to surface inbound edges alongside an entry's read response.
+ */
+export async function findIncomingEdges(
+  projectRoot: string,
+  targetId: string,
+): Promise<Record<string, string[]>> {
+  const all = await listEntries(projectRoot);
+  const grouped: Record<string, string[]> = {};
+  for (const e of all) {
+    if (e.frontmatter.id === targetId) continue;
+    for (const [relation, ids] of Object.entries(e.frontmatter.relations)) {
+      if ((ids as string[]).includes(targetId)) {
+        if (!grouped[relation]) grouped[relation] = [];
+        grouped[relation].push(e.frontmatter.id);
+      }
+    }
+  }
+  for (const k of Object.keys(grouped)) grouped[k]!.sort();
+  return grouped;
 }
 
 export async function listStagedEntries(

@@ -51,9 +51,13 @@ export const TOOL_SCHEMAS = {
               type: "string",
               enum: [
                 "supersedes",
-                "contradicts",
-                "reinforces",
+                "contradiction_of",
                 "derived_from",
+                "reinforces",
+                "caused_by",
+                "blocks",
+                "depends_on",
+                "refutes",
               ],
             },
             direction: {
@@ -111,6 +115,7 @@ export const TOOL_SCHEMAS = {
         },
         prompt_context: { type: "string", maxLength: 2000 },
         client_request_id: { type: "string", maxLength: 200 },
+        source_model: { type: "string", maxLength: 200 },
       },
       required: ["source_kind", "source_ref", "source_content", "project_id"],
     },
@@ -124,6 +129,8 @@ export const TOOL_SCHEMAS = {
       properties: {
         staged_id: { type: "string", pattern: ENTRY_ID_PATTERN },
         client_request_id: { type: "string", maxLength: 200 },
+        source_model: { type: "string", maxLength: 200 },
+        rationale: { type: "string", maxLength: 2000 },
       },
       required: ["staged_id"],
     },
@@ -146,7 +153,7 @@ export const TOOL_SCHEMAS = {
 
   link_entries: {
     description:
-      "Add a relation between two entries. Rejects self-links and supersedes cycles. A contradicts link sets both entries to status: contested.",
+      "Add a typed edge between two entries. Rejects self-links and supersedes cycles. A contradiction_of link sets both entries to status: contested. Vocabulary capped at 8 kinds; ninth kind requires removing one.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -154,12 +161,155 @@ export const TOOL_SCHEMAS = {
         source_id: { type: "string", pattern: ENTRY_ID_PATTERN },
         relation: {
           type: "string",
-          enum: ["supersedes", "contradicts", "reinforces", "derived_from"],
+          enum: [
+            "supersedes",
+            "contradiction_of",
+            "derived_from",
+            "reinforces",
+            "caused_by",
+            "blocks",
+            "depends_on",
+            "refutes",
+          ],
         },
         target_id: { type: "string", pattern: ENTRY_ID_PATTERN },
         client_request_id: { type: "string", maxLength: 200 },
       },
       required: ["source_id", "relation", "target_id"],
+    },
+  },
+
+  discard_staged: {
+    description:
+      "Discard a staged candidate without committing. Removes the staged file and emits a curation event capturing the original payload.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        staged_id: { type: "string", pattern: ENTRY_ID_PATTERN },
+        rationale: { type: "string", maxLength: 2000 },
+        source_model: { type: "string", maxLength: 200 },
+        client_request_id: { type: "string", maxLength: 200 },
+      },
+      required: ["staged_id"],
+    },
+  },
+
+  edit_staged: {
+    description:
+      "Modify fields of a staged candidate (claim, confidence, tags, body) before committing. Evidence remains immutable. Emits a curation event with both pre- and post-edit payloads.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        staged_id: { type: "string", pattern: ENTRY_ID_PATTERN },
+        claim: { type: "string", maxLength: 280 },
+        confidence: {
+          type: "string",
+          enum: ["high", "medium", "low"],
+        },
+        tags: { type: "array", items: { type: "string" } },
+        body: { type: "string", maxLength: 200_000 },
+        rationale: { type: "string", maxLength: 2000 },
+        source_model: { type: "string", maxLength: 200 },
+        client_request_id: { type: "string", maxLength: 200 },
+      },
+      required: ["staged_id"],
+    },
+  },
+
+  propose_edge: {
+    description:
+      "Record an LLM-proposed typed edge between two entries. Does not create the edge; only emits a curation event. Returns a proposal_id that must accompany commit_edge or discard_edge.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        source_id: { type: "string", pattern: ENTRY_ID_PATTERN },
+        relation: {
+          type: "string",
+          enum: [
+            "supersedes",
+            "contradiction_of",
+            "derived_from",
+            "reinforces",
+            "caused_by",
+            "blocks",
+            "depends_on",
+            "refutes",
+          ],
+        },
+        target_id: { type: "string", pattern: ENTRY_ID_PATTERN },
+        proposal_id: { type: "string", maxLength: 200 },
+        source_model: { type: "string", maxLength: 200 },
+        source_ref: { type: "string", maxLength: 500 },
+        rationale: { type: "string", maxLength: 2000 },
+        client_request_id: { type: "string", maxLength: 200 },
+      },
+      required: ["source_id", "relation", "target_id"],
+    },
+  },
+
+  commit_edge: {
+    description:
+      "Accept a previously proposed edge. Calls link_entries internally to actually create the relation and emits an accept_edge curation event.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        proposal_id: { type: "string", maxLength: 200 },
+        source_id: { type: "string", pattern: ENTRY_ID_PATTERN },
+        relation: {
+          type: "string",
+          enum: [
+            "supersedes",
+            "contradiction_of",
+            "derived_from",
+            "reinforces",
+            "caused_by",
+            "blocks",
+            "depends_on",
+            "refutes",
+          ],
+        },
+        target_id: { type: "string", pattern: ENTRY_ID_PATTERN },
+        source_model: { type: "string", maxLength: 200 },
+        source_ref: { type: "string", maxLength: 500 },
+        rationale: { type: "string", maxLength: 2000 },
+        client_request_id: { type: "string", maxLength: 200 },
+      },
+      required: ["proposal_id", "source_id", "relation", "target_id"],
+    },
+  },
+
+  discard_edge: {
+    description:
+      "Discard a previously proposed edge without creating it. Emits a discard_edge curation event. The edge state is unchanged.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        proposal_id: { type: "string", maxLength: 200 },
+        source_id: { type: "string", pattern: ENTRY_ID_PATTERN },
+        relation: {
+          type: "string",
+          enum: [
+            "supersedes",
+            "contradiction_of",
+            "derived_from",
+            "reinforces",
+            "caused_by",
+            "blocks",
+            "depends_on",
+            "refutes",
+          ],
+        },
+        target_id: { type: "string", pattern: ENTRY_ID_PATTERN },
+        rationale: { type: "string", maxLength: 2000 },
+        source_model: { type: "string", maxLength: 200 },
+        client_request_id: { type: "string", maxLength: 200 },
+      },
+      required: ["proposal_id", "source_id", "relation", "target_id"],
     },
   },
 } as const;
