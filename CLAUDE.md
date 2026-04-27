@@ -53,22 +53,26 @@ The canonical store for any Priors-equipped project lives at `.priors/` **inside
 
 ## MCP surface (v1)
 
-3 resources, 6 tools. Names and shapes are stable across v1.
+4 resources, 11 tools. Names and shapes are stable across v1.
 
 Resources:
 
 - `priors://brief`
 - `priors://index`
 - `priors://entry/{id}`
+- `priors://audit/{id}` — filtered audit slice for a single entry (kept under a narrower contract than the v0.3 version)
 
 Tools:
 
 - `recall(query, filters)`
 - `get_entry(id)`
-- `stage_learning(...)`
-- `commit_learning(staged_id)`
+- `stage_learning(...)` — substring + Dice-coefficient grounding-floor verification; writes to `staged/`; emits `propose`/`stage`/`reject` to `audit/curation.log`
+- `edit_staged(staged_id, ...)` — modify a staged candidate before commit (evidence is immutable)
+- `discard_staged(staged_id, rationale?)` — drop a staged candidate without committing
+- `commit_learning(staged_id)` — promotes to active; optional `commitThreshold` in `config.json` gates against the composite quality score
 - `mark_stale(id, reason)`
-- `link_entries(source_id, relation, target_id)`
+- `link_entries(source_id, relation, target_id)` — relations: `supersedes`, `contradiction_of`, `derived_from`, `reinforces`, `caused_by`, `blocks`, `depends_on`, `refutes`
+- `propose_edge(...)` / `commit_edge(...)` / `discard_edge(...)` — proposal-then-accept flow for typed edges; proposals aren't persisted, the curation log is the record
 
 Prompts (MCP prompt templates):
 
@@ -80,7 +84,7 @@ These existed in the legacy v0.3 (now tagged `legacy/v0.3.0`) and have been **re
 
 - `priors.init`, `priors.reinforce`, `priors.writeEntry`, `priors.updateEntry`, `priors.discard`
 - `priors.emitConstraint`, `priors.applyEmission`, `priors.health`, `priors.export` (export/import return as plain CLI verbs and a different shape)
-- Resources: `priors://orientation/head`, `priors://operator`, `priors://state`, `priors://compiled/harness-reminders`, `priors://audit/{id}` (the last one returns under a more limited contract — TBD per spec)
+- Resources: `priors://orientation/head`, `priors://operator`, `priors://state`, `priors://compiled/harness-reminders`
 - Activation/decay metadata fields: `activation_score`, `decayed_activation_score`, `activation_state`, `helpful_count`, `decay_half_life_days`, `retrieval_policy`
 - The `~/.priors/projects/<repo-id>/` neutral store layout
 
