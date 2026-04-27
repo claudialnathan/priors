@@ -30,11 +30,13 @@ export interface DistillationReject {
   source_ref: string;
   reason_code:
     | "quote_not_in_source"
+    | "ungrounded_claim"
     | "forbidden_kind"
     | "claim_too_long"
     | "evidence_count_invalid"
     | "reasoning_too_long"
-    | "duplicate_of_active";
+    | "duplicate_of_active"
+    | "below_threshold";
   message: string;
   candidate?: unknown;
   client_request_id?: string;

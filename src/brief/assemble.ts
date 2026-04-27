@@ -279,8 +279,8 @@ function renderActiveDecisions(
 function decisionLine(e: LoadedEntry): string {
   const c = e.frontmatter.confidence[0]!.toLowerCase();
   const contested =
-    e.frontmatter.relations.contradicts.length > 0
-      ? ` (contested with ${e.frontmatter.relations.contradicts
+    e.frontmatter.relations.contradiction_of.length > 0
+      ? ` (contested with ${e.frontmatter.relations.contradiction_of
           .map((id) => `\`${id}\``)
           .join(", ")})`
       : "";
@@ -368,7 +368,7 @@ function renderContested(entries: LoadedEntry[], budget: number): string {
   if (candidates.length === 0) return `${heading}\n(none)`;
   const top = candidates.slice(0, 5);
   let lines = top.map((e) => {
-    const challenger = e.frontmatter.relations.contradicts[0];
+    const challenger = e.frontmatter.relations.contradiction_of[0];
     if (challenger) {
       return `- \`${e.frontmatter.id}\` ${e.frontmatter.claim}; challenged by \`${challenger}\` ${e.frontmatter.updated_at.slice(0, 10)}`;
     }
@@ -507,9 +507,13 @@ function countInboundLinks(entries: LoadedEntry[]): Map<string, number> {
     const r = e.frontmatter.relations;
     for (const id of [
       ...r.supersedes,
-      ...r.contradicts,
-      ...r.reinforces,
+      ...r.contradiction_of,
       ...r.derived_from,
+      ...r.reinforces,
+      ...r.caused_by,
+      ...r.blocks,
+      ...r.depends_on,
+      ...r.refutes,
     ]) {
       counts.set(id, (counts.get(id) ?? 0) + 1);
     }

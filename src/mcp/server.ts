@@ -15,15 +15,26 @@ import {
   validateStageInput,
 } from "../distill/stage.ts";
 import {
+  commitEdge,
+  discardEdge,
+  discardStaged,
+  editStaged,
   linkEntries,
   markStale,
+  proposeEdge,
+  validateCommitEdgeInput,
+  validateDiscardEdgeInput,
+  validateDiscardStagedInput,
+  validateEditStagedInput,
   validateLinkInput,
   validateMarkStaleInput,
+  validateProposeEdgeInput,
 } from "../curation/curation.ts";
 import { assembleBrief } from "../brief/assemble.ts";
 import { regenerateIndex, type IndexDocument } from "../store/index.ts";
 import {
   findEntryById,
+  findIncomingEdges,
   readStagedEntry,
   listEntries,
   entryToFileText,
@@ -407,6 +418,26 @@ async function handleToolCall(
       validateLinkInput(args);
       result = await linkEntries(ctx.projectRoot, args);
       break;
+    case "discard_staged":
+      validateDiscardStagedInput(args);
+      result = await discardStaged(ctx.projectRoot, args);
+      break;
+    case "edit_staged":
+      validateEditStagedInput(args);
+      result = await editStaged(ctx.projectRoot, args);
+      break;
+    case "propose_edge":
+      validateProposeEdgeInput(args);
+      result = await proposeEdge(ctx.projectRoot, args);
+      break;
+    case "commit_edge":
+      validateCommitEdgeInput(args);
+      result = await commitEdge(ctx.projectRoot, args);
+      break;
+    case "discard_edge":
+      validateDiscardEdgeInput(args);
+      result = await discardEdge(ctx.projectRoot, args);
+      break;
     default:
       throw new RpcError(ERR.METHOD_NOT_FOUND, `unknown tool: ${name}`);
   }
@@ -428,11 +459,13 @@ async function runGetEntry(
   }
   const entry = await findEntryById(ctx.projectRoot, id);
   if (entry) {
+    const incoming = await findIncomingEdges(ctx.projectRoot, id);
     return {
       area: "entries",
       frontmatter: entry.frontmatter,
       body: entry.body,
       path: entry.location.relativePath,
+      incoming_edges: incoming,
     };
   }
   const staged = await readStagedEntry(ctx.projectRoot, id);
@@ -442,10 +475,12 @@ async function runGetEntry(
       frontmatter: staged.frontmatter,
       body: staged.body,
       path: staged.location.relativePath,
+      incoming_edges: {},
     };
   }
   throw new RpcError(ERR.INVALID_PARAMS, `entry not found: ${id}`);
 }
+
 
 function wrapResult(result: unknown): CallToolResponse {
   return {

@@ -19,6 +19,10 @@ import {
 } from "../store/entries.ts";
 import { regenerateIndex } from "../store/index.ts";
 import { appendAudit, appendRejection, type DistillationReject } from "../store/audit.ts";
+import { appendCurationEvent } from "../store/curation-log.ts";
+import { readConfig, type GroundingMode } from "../store/config.ts";
+import { scoreClaimAgainstEvidence } from "./grounding.ts";
+import { computeScores, type SubScores } from "./score.ts";
 import { renderSystemAndUser, type PromptInputs } from "./prompt.ts";
 
 const MAX_CANDIDATES = 5;
@@ -46,9 +50,13 @@ export interface CandidateInput {
   confidence: EntryConfidence;
   relations?: {
     supersedes?: string[];
-    contradicts?: string[];
-    reinforces?: string[];
+    contradiction_of?: string[];
     derived_from?: string[];
+    reinforces?: string[];
+    caused_by?: string[];
+    blocks?: string[];
+    depends_on?: string[];
+    refutes?: string[];
   };
   flags?: string[];
   /** Optional explicit id; otherwise we generate one. */
@@ -64,6 +72,7 @@ export interface StageInput {
   existing_entries?: Array<{ id: string; claim: string }>;
   prompt_context?: string;
   client_request_id?: string;
+  source_model?: string;
 }
 
 export interface StagedRecord {
@@ -115,6 +124,7 @@ export function validateStageInput(raw: unknown): StageInput {
     "prompt_context",
     "client_request_id",
     "no_candidates_reason",
+    "source_model",
   ];
   for (const k of Object.keys(r)) {
     if (!allowed.includes(k)) throw new Error(`stage_learning: unknown field ${k}`);
@@ -187,6 +197,12 @@ export function validateStageInput(raw: unknown): StageInput {
       throw new Error("stage_learning: client_request_id must be a string");
     }
     out.client_request_id = r["client_request_id"];
+  }
+  if (r["source_model"] !== undefined) {
+    if (typeof r["source_model"] !== "string") {
+      throw new Error("stage_learning: source_model must be a string");
+    }
+    out.source_model = r["source_model"];
   }
   return out;
 }
@@ -296,7 +312,18 @@ function validateRelations(
   const r = raw as Record<string, unknown>;
   const out: NonNullable<CandidateInput["relations"]> = {};
   for (const [k, v] of Object.entries(r)) {
-    if (!["supersedes", "contradicts", "reinforces", "derived_from"].includes(k)) {
+    if (
+      ![
+        "supersedes",
+        "contradiction_of",
+        "derived_from",
+        "reinforces",
+        "caused_by",
+        "blocks",
+        "depends_on",
+        "refutes",
+      ].includes(k)
+    ) {
       throw new Error(`candidates[${idx}].relations: unknown key ${k}`);
     }
     if (
@@ -346,14 +373,49 @@ export async function stageLearning(
   }
 
   const activeEntries = await listEntries(projectRoot);
+  const config = await readConfig(projectRoot);
   const staged: StagedRecord[] = [];
   const rejected: StageRejected[] = [];
   const ts = isoDatetime(clock.now());
   const today = isoDate(clock.now());
+  const sourceModel = input.source_model ?? "unknown";
 
   for (let i = 0; i < input.candidates.length; i++) {
     const candidate = input.candidates[i]!;
-    const v = verifyCandidate(candidate, input.source_content, activeEntries);
+    const scoreResult = computeScores(
+      {
+        kind: candidate.kind,
+        claim: candidate.claim,
+        reasoning: candidate.reasoning,
+        evidence: candidate.evidence,
+      },
+      input.source_content,
+      activeEntries.map((e) => ({
+        kind: e.frontmatter.kind,
+        claim: e.frontmatter.claim,
+      })),
+    );
+    await appendCurationEvent(projectRoot, {
+      kind: "propose",
+      ts,
+      source_model: sourceModel,
+      source_ref: input.source_ref,
+      candidate_index: i,
+      original_payload: candidate,
+      sub_scores: scoreResult.sub_scores as unknown as Record<string, number>,
+      composite: scoreResult.composite,
+      ...(input.client_request_id
+        ? { client_request_id: input.client_request_id }
+        : {}),
+    });
+    const v = verifyCandidate(
+      candidate,
+      input.source_content,
+      activeEntries,
+      config.groundingMode,
+      config.commitThreshold,
+      scoreResult,
+    );
     if (!v.ok) {
       rejected.push({ ...v, candidate });
       await appendRejection(projectRoot, {
@@ -366,20 +428,50 @@ export async function stageLearning(
           ? { client_request_id: input.client_request_id }
           : {}),
       });
+      await appendCurationEvent(projectRoot, {
+        kind: "reject",
+        ts,
+        source_model: sourceModel,
+        source_ref: input.source_ref,
+        reason_code: v.reason_code,
+        message: v.message,
+        original_payload: candidate,
+        sub_scores: v.sub_scores as unknown as Record<string, number>,
+        composite: v.composite,
+        ...(v.unsupported_substrings
+          ? { unsupported_substrings: v.unsupported_substrings }
+          : {}),
+        ...(input.client_request_id
+          ? { client_request_id: input.client_request_id }
+          : {}),
+      });
       continue;
     }
     if (v.dedup_into) {
+      const dedupMsg = `claim deduplicates into existing entry ${v.dedup_into}`;
       rejected.push({
         reason_code: "duplicate_of_active",
-        message: `claim deduplicates into existing entry ${v.dedup_into}`,
+        message: dedupMsg,
         candidate,
       });
       await appendRejection(projectRoot, {
         ts,
         source_ref: input.source_ref,
         reason_code: "duplicate_of_active",
-        message: `claim deduplicates into existing entry ${v.dedup_into}`,
+        message: dedupMsg,
         candidate,
+        ...(input.client_request_id
+          ? { client_request_id: input.client_request_id }
+          : {}),
+      });
+      await appendCurationEvent(projectRoot, {
+        kind: "reject",
+        ts,
+        source_model: sourceModel,
+        source_ref: input.source_ref,
+        reason_code: "duplicate_of_active",
+        message: dedupMsg,
+        original_payload: candidate,
         ...(input.client_request_id
           ? { client_request_id: input.client_request_id }
           : {}),
@@ -387,6 +479,9 @@ export async function stageLearning(
       continue;
     }
     const id = candidate.id ?? generateStagedId(today, candidate, i);
+    const flagsWithWarning = v.grounding_warning
+      ? [...(candidate.flags ?? []), "grounding_warning"]
+      : (candidate.flags ?? []);
     const existing = await readStagedEntry(projectRoot, id);
     if (existing) {
       // Idempotent: skip but still report as already staged.
@@ -395,7 +490,7 @@ export async function stageLearning(
         kind: candidate.kind,
         claim: candidate.claim,
         confidence: candidate.confidence,
-        flags: candidate.flags ?? [],
+        flags: flagsWithWarning,
         evidence: candidate.evidence,
         reasoning: candidate.reasoning,
         path: existing.location.relativePath,
@@ -414,11 +509,15 @@ export async function stageLearning(
         confidence: candidate.confidence,
         relations: {
           supersedes: candidate.relations?.supersedes ?? [],
-          contradicts: candidate.relations?.contradicts ?? [],
-          reinforces: candidate.relations?.reinforces ?? [],
+          contradiction_of: candidate.relations?.contradiction_of ?? [],
           derived_from: candidate.relations?.derived_from ?? [],
+          reinforces: candidate.relations?.reinforces ?? [],
+          caused_by: candidate.relations?.caused_by ?? [],
+          blocks: candidate.relations?.blocks ?? [],
+          depends_on: candidate.relations?.depends_on ?? [],
+          refutes: candidate.relations?.refutes ?? [],
         },
-        tags: candidate.flags ?? [],
+        tags: flagsWithWarning,
         source_ref: input.source_ref,
       },
     );
@@ -432,7 +531,7 @@ export async function stageLearning(
       kind: candidate.kind,
       claim: candidate.claim,
       confidence: candidate.confidence,
-      flags: candidate.flags ?? [],
+      flags: flagsWithWarning,
       evidence: candidate.evidence,
       reasoning: candidate.reasoning,
       path: location.relativePath,
@@ -443,6 +542,25 @@ export async function stageLearning(
       staged_id: id,
       kind: candidate.kind,
       ts,
+      ...(input.client_request_id
+        ? { client_request_id: input.client_request_id }
+        : {}),
+    });
+    await appendCurationEvent(projectRoot, {
+      kind: "stage",
+      ts,
+      source_model: sourceModel,
+      source_ref: input.source_ref,
+      staged_id: id,
+      original_payload: candidate,
+      ...(v.grounding_warning
+        ? {
+            grounding_warning: {
+              score: v.grounding_warning.score,
+              unsupported_tokens: v.grounding_warning.unsupported_tokens,
+            },
+          }
+        : {}),
       ...(input.client_request_id
         ? { client_request_id: input.client_request_id }
         : {}),
@@ -464,73 +582,124 @@ export async function stageLearning(
 interface VerifyOk {
   ok: true;
   dedup_into?: string;
+  grounding_warning?: { score: number; unsupported_tokens: string[] };
+  sub_scores: SubScores;
+  composite: number;
 }
 interface VerifyFail {
   ok: false;
   reason_code: DistillationReject["reason_code"];
   message: string;
+  unsupported_substrings?: string[];
+  sub_scores: SubScores;
+  composite: number;
 }
 
 function verifyCandidate(
   candidate: CandidateInput,
   sourceContent: string,
   activeEntries: LoadedEntry[],
+  groundingMode: GroundingMode,
+  commitThreshold: number,
+  scoreResult: ReturnType<typeof computeScores>,
 ): VerifyOk | VerifyFail {
+  const sub_scores = scoreResult.sub_scores;
+  const composite = scoreResult.composite;
+  const fail = (
+    reason_code: DistillationReject["reason_code"],
+    message: string,
+    extras: { unsupported_substrings?: string[] } = {},
+  ): VerifyFail => ({
+    ok: false,
+    reason_code,
+    message,
+    sub_scores,
+    composite,
+    ...(extras.unsupported_substrings
+      ? { unsupported_substrings: extras.unsupported_substrings }
+      : {}),
+  });
   if (candidate.claim.length > CLAIM_MAX) {
-    return {
-      ok: false,
-      reason_code: "claim_too_long",
-      message: `claim exceeds ${CLAIM_MAX} chars (${candidate.claim.length})`,
-    };
+    return fail(
+      "claim_too_long",
+      `claim exceeds ${CLAIM_MAX} chars (${candidate.claim.length})`,
+    );
   }
   if (candidate.reasoning.length > REASONING_MAX) {
-    return {
-      ok: false,
-      reason_code: "reasoning_too_long",
-      message: `reasoning exceeds ${REASONING_MAX} chars (${candidate.reasoning.length})`,
-    };
+    return fail(
+      "reasoning_too_long",
+      `reasoning exceeds ${REASONING_MAX} chars (${candidate.reasoning.length})`,
+    );
   }
   if (
     candidate.evidence.length < EVIDENCE_MIN ||
     candidate.evidence.length > EVIDENCE_MAX
   ) {
-    return {
-      ok: false,
-      reason_code: "evidence_count_invalid",
-      message: `evidence count must be between ${EVIDENCE_MIN} and ${EVIDENCE_MAX} (got ${candidate.evidence.length})`,
-    };
+    return fail(
+      "evidence_count_invalid",
+      `evidence count must be between ${EVIDENCE_MIN} and ${EVIDENCE_MAX} (got ${candidate.evidence.length})`,
+    );
   }
   for (const f of FORBIDDEN_PATTERNS) {
     if (f.test(candidate.claim) || f.test(candidate.reasoning)) {
-      return {
-        ok: false,
-        reason_code: "forbidden_kind",
-        message: "candidate appears to make a claim about the user; forbidden in v1",
-      };
+      return fail(
+        "forbidden_kind",
+        "candidate appears to make a claim about the user; forbidden in v1",
+      );
     }
   }
   const normalisedSource = normaliseQuote(sourceContent);
   for (const e of candidate.evidence) {
     const q = normaliseQuote(e.quote);
     if (q.length === 0) {
-      return {
-        ok: false,
-        reason_code: "quote_not_in_source",
-        message: "evidence quote is empty after normalisation",
-      };
+      return fail(
+        "quote_not_in_source",
+        "evidence quote is empty after normalisation",
+      );
     }
     if (!normalisedSource.includes(q)) {
-      return {
-        ok: false,
-        reason_code: "quote_not_in_source",
-        message: `evidence quote not found verbatim in source: "${truncate(e.quote, 80)}"`,
-      };
+      return fail(
+        "quote_not_in_source",
+        `evidence quote not found verbatim in source: "${truncate(e.quote, 80)}"`,
+      );
     }
   }
 
+  const grounding = scoreClaimAgainstEvidence(
+    candidate.claim,
+    candidate.evidence.map((e) => e.quote),
+  );
+  if (!grounding.passes) {
+    if (groundingMode === "strict") {
+      return fail(
+        "ungrounded_claim",
+        `claim shares too little content with its evidence (score ${grounding.score.toFixed(3)} < ${0.15})`,
+        { unsupported_substrings: grounding.unsupportedTokens },
+      );
+    }
+    const dedupWarn = findDedupTarget(candidate, activeEntries);
+    return {
+      ok: true,
+      sub_scores,
+      composite,
+      grounding_warning: {
+        score: grounding.score,
+        unsupported_tokens: grounding.unsupportedTokens,
+      },
+      ...(dedupWarn ? { dedup_into: dedupWarn } : {}),
+    };
+  }
+
+  if (composite < commitThreshold) {
+    return fail(
+      "below_threshold",
+      `composite score ${composite.toFixed(3)} below threshold ${commitThreshold.toFixed(3)}`,
+    );
+  }
+
   const dedup = findDedupTarget(candidate, activeEntries);
-  if (dedup) return { ok: true, dedup_into: dedup };
-  return { ok: true };
+  if (dedup) return { ok: true, sub_scores, composite, dedup_into: dedup };
+  return { ok: true, sub_scores, composite };
 }
 
 function findDedupTarget(
@@ -606,6 +775,8 @@ function slugify(s: string): string {
 export interface CommitInput {
   staged_id: string;
   client_request_id?: string;
+  source_model?: string;
+  rationale?: string;
 }
 
 export function validateCommitInput(raw: unknown): CommitInput {
@@ -614,7 +785,9 @@ export function validateCommitInput(raw: unknown): CommitInput {
   }
   const r = raw as Record<string, unknown>;
   for (const k of Object.keys(r)) {
-    if (!["staged_id", "client_request_id"].includes(k)) {
+    if (
+      !["staged_id", "client_request_id", "source_model", "rationale"].includes(k)
+    ) {
       throw new Error(`commit_learning: unknown field ${k}`);
     }
   }
@@ -627,10 +800,25 @@ export function validateCommitInput(raw: unknown): CommitInput {
   ) {
     throw new Error("commit_learning: client_request_id must be a string");
   }
+  if (
+    r["source_model"] !== undefined &&
+    typeof r["source_model"] !== "string"
+  ) {
+    throw new Error("commit_learning: source_model must be a string");
+  }
+  if (r["rationale"] !== undefined && typeof r["rationale"] !== "string") {
+    throw new Error("commit_learning: rationale must be a string");
+  }
   return {
     staged_id: r["staged_id"] as string,
     ...(r["client_request_id"] !== undefined
       ? { client_request_id: r["client_request_id"] as string }
+      : {}),
+    ...(r["source_model"] !== undefined
+      ? { source_model: r["source_model"] as string }
+      : {}),
+    ...(r["rationale"] !== undefined
+      ? { rationale: r["rationale"] as string }
       : {}),
   };
 }
@@ -643,6 +831,8 @@ export async function commitLearning(
   const input = validateCommitInput(rawInput);
   const clock = opts.clock ?? systemClock;
   const ts = isoDatetime(clock.now());
+
+  const sourceModel = input.source_model ?? "unknown";
 
   const existingActive = await findEntryById(projectRoot, input.staged_id);
   if (existingActive) {
@@ -658,6 +848,10 @@ export async function commitLearning(
   if (!staged) {
     throw new Error(`commit_learning: staged entry ${input.staged_id} not found`);
   }
+  const originalPayload = {
+    frontmatter: { ...staged.frontmatter },
+    body: staged.body,
+  };
 
   staged.frontmatter.updated_at = ts;
   staged.frontmatter.status = "active";
@@ -674,6 +868,22 @@ export async function commitLearning(
     ...(input.client_request_id
       ? { client_request_id: input.client_request_id }
       : {}),
+  });
+
+  const sourceRef = staged.frontmatter.source_ref ?? "";
+  await appendCurationEvent(projectRoot, {
+    kind: "accept",
+    ts,
+    source_model: sourceModel,
+    source_ref: sourceRef,
+    staged_id: input.staged_id,
+    entry_id: input.staged_id,
+    original_payload: originalPayload,
+    edited_payload: null,
+    ...(input.client_request_id
+      ? { client_request_id: input.client_request_id }
+      : {}),
+    ...(input.rationale ? { rationale: input.rationale } : {}),
   });
 
   return {

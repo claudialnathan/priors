@@ -7,7 +7,7 @@ import {
   TOOL_SCHEMAS,
 } from "../../../src/schema/mcp.ts";
 
-test("v1 exposes the six approved tools and no more", () => {
+test("v1 exposes the approved tools and no more", () => {
   const expected = [
     "recall",
     "get_entry",
@@ -15,6 +15,11 @@ test("v1 exposes the six approved tools and no more", () => {
     "commit_learning",
     "mark_stale",
     "link_entries",
+    "discard_staged",
+    "edit_staged",
+    "propose_edge",
+    "commit_edge",
+    "discard_edge",
   ].sort();
   const actual = Object.keys(TOOL_SCHEMAS).sort();
   assert.deepEqual(actual, expected);

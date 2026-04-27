@@ -10,7 +10,7 @@
   },
   "preferGlobal": true,
   "scripts": {
-    "test": "node --test 'tests/unit/**/*.test.ts' 'tests/snapshots/**/*.test.ts' 'tests/regression/**/*.test.ts'",
+    "test": "node --test 'tests/unit/**/*.test.ts' 'tests/snapshots/**/*.test.ts' 'tests/regression/**/*.test.ts' 'tests/grounding/**/*.test.ts'",
     "test:unit": "node --test 'tests/unit/**/*.test.ts'",
     "test:snapshots": "node --test 'tests/snapshots/**/*.test.ts'",
     "test:regression": "node --test 'tests/regression/**/*.test.ts'",
