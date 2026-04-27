@@ -4,11 +4,9 @@
 
 Most harness memory treats the agent as the protagonist. Priors inverts this: the project's trajectory is primary. Transient agents simply read from and append to a typed log of decisions, constraints, and dead-ends living right in your repository.
 
-The store lives in `.priors/` as plain Markdown, YAML, and JSON. No daemon, no database, no cloud account. You edit it like any other folder, diff it in git, and ship it with the code. Fresh sessions inherit the codebase's context without burning tokens to replay history.
+The store lives in `.priors/` as plain Markdown, YAML, and JSON. No daemon, no database and no cloud account. You edit it like any other folder, diff it in gid and ship it with the code. Fresh sessions inherit the codebase's context without burning tokens to replay history.
 
-Priors tracks what the repo knows about its own history using the MCP wire-up you already have. Reference clients include [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Cursor](https://cursor.com), and the [Codex CLI / OpenAI Agents SDK](https://github.com/openai/openai-agents-python). Any MCP client can read and write the same files.
-
-
+Priors tracks what the repo knows about its own history using the MCP wire-up you already have. Reference clients include [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Cursor](https://cursor.com), and the [Codex CLI / OpenAI Agents SDK](https://github.com/openai/openai-agents-python), but any MCP client can read and write the same files.
 
 ## Why it exists
 
@@ -17,8 +15,6 @@ Priors tracks what the repo knows about its own history using the MCP wire-up yo
 **Winning answers aren't enough.** Stop at _we chose X_ and you drop the failures, rejected forks, and revisit dates—guaranteeing the next agent will hallucinate its way down the exact same dead end. Priors entries carry a `kind` (`decision`, `failure`, `constraint`, `pattern`, `question`). Agents can pull rejected approaches or stale markers without flooding their context window.
 
 **Tension is data.** If you log only the final answer, you bury the fork you rejected. Priors keeps both sides. `link_entries(source_id, contradicts, target_id)` marks both as `contested` and the brief lists them together. Query the tension instead of deleting it.
-
-
 
 ## What you get
 
@@ -49,8 +45,6 @@ Priors tracks what the repo knows about its own history using the MCP wire-up yo
 </tr>
 </table>
 
-
-
 ## Store layout
 
 ```text
@@ -67,8 +61,6 @@ Priors tracks what the repo knows about its own history using the MCP wire-up yo
 ```
 
 The layout is the API. The shipped server and CLI are just one implementation; anything that reads files can participate.
-
-
 
 ## Install
 
@@ -117,8 +109,6 @@ npm install
 node bin/priors.js init --project-root .
 ```
 
-
-
 ## Commands
 
 ```bash
@@ -143,8 +133,6 @@ priors mcp                               # stdio MCP server for clients
 ```
 
 The CLI exactly matches the MCP tool surface: agents and humans hit the same code paths.
-
-
 
 ## Entry
 
@@ -191,8 +179,6 @@ Two sources of truth hide RLS bugs behind app-layer correctness. The team
 has done this before.
 ```
 
-
-
 ## Brief
 
 `priors://brief` leverages progressive disclosure. It stays shallow to protect the context window. Agents follow IDs when they need depth.
@@ -236,8 +222,6 @@ conservative staged distillation. (priors-20260301-v1-scope)
 - 8 staged entries awaiting review: run `priors commit <id>` after edits, or remove files under `.priors/staged/` you reject.
 ```
 
-
-
 ## Design center
 
 - **Project-scoped records:** Entries describe the codebase and the calls around it, not operator psychology. No `user.json`, no preference blobs, no identity claims.
@@ -249,8 +233,6 @@ conservative staged distillation. (priors-20260301-v1-scope)
 - **Stable IDs:** UUID in `project.json` survives directory renames and moves.
 - **Idempotent writes:** MCP tools accept `client_request_id` so retries do not duplicate work.
 
-
-
 ## v1 boundary
 
 **Ships:** `.priors/` layout; MCP resources `priors://brief`, `priors://index`, `priors://entry/{id}`; tools `recall`, `get_entry`, `stage_learning`, `commit_learning`, `mark_stale`, `link_entries`; CLI parity; bounded deterministic brief; quoted staging; export/import with dry-run default; client setup docs; seven regression tasks.
@@ -258,7 +240,6 @@ conservative staged distillation. (priors-20260301-v1-scope)
 **Deferred:** decay or helpful/harmful scores; auto-distillation hooks; `emit_constraint`; shared multi-project store; web UI; semantic search; hosted sync; daemons.
 
 Deferred items are intentionally outside the current package behavior. Feature requests should start with the use case, the proposed surface, and the compatibility risk.
-
 
 ## Docs
 
@@ -270,13 +251,9 @@ Deferred items are intentionally outside the current package behavior. Feature r
 | [`docs/specs/staged-distillation.md`](docs/specs/staged-distillation.md) | Staging, quotes, and verification mechanics.      |
 | [`docs/evals.md`](docs/evals.md)                                         | Regression suite layout and scoring.              |
 
-
-
 ## Status
 
 v1 is active. The specs linked above are locked; the regression suite is the release gate.
-
-
 
 ## Contributing
 
@@ -288,8 +265,6 @@ npm test
 ```
 
 Before opening a PR, run the tests and keep the change scoped. For behavior changes, update the relevant docs and tests in the same PR.
-
-
 
 ## License
 

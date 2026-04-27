@@ -10,7 +10,16 @@ import {
   stageLearning,
   type StageInput,
 } from "../distill/stage.ts";
-import { linkEntries, markStale } from "../curation/curation.ts";
+import {
+  commitEdge,
+  discardEdge,
+  discardStaged,
+  editStaged,
+  linkEntries,
+  markStale,
+  proposeEdge,
+} from "../curation/curation.ts";
+import { readCurationLog } from "../store/audit-query.ts";
 import { exportPack, importPack } from "../export/pack.ts";
 import { runHealthCheck } from "../health/check.ts";
 import {
@@ -23,6 +32,7 @@ import {
 import { runEvalSuite } from "../evals/runner.ts";
 import {
   findEntryById,
+  findIncomingEdges,
   readStagedEntry,
   entryToFileText,
 } from "../store/entries.ts";
@@ -57,11 +67,27 @@ Commands:
   commit <staged_id>            Promote a staged entry to active
   mark-stale <id> --reason R    Mark an entry as stale
   link <source> <relation> <target>
-                                Link two entries (supersedes|contradicts|reinforces|derived_from)
+                                Link two entries (supersedes|contradiction_of|derived_from|
+                                reinforces|caused_by|blocks|depends_on|refutes)
+  discard <staged_id> [--rationale R] [--source-model M]
+                                Discard a staged candidate without committing
+  edit-staged <staged_id> [--claim C] [--confidence high|medium|low]
+                            [--tags a,b] [--body @file] [--rationale R]
+                                Modify a staged candidate before committing
+  propose-edge <source> <relation> <target> [--rationale R] [--source-model M]
+                                Record an LLM-proposed edge (does not create it)
+  commit-edge <proposal_id> <source> <relation> <target>
+                                Accept a proposed edge (creates the link)
+  discard-edge <proposal_id> <source> <relation> <target>
+                                Discard a proposed edge without creating it
+  migrate-relations [--dry-run]
+                                Rewrite legacy 'contradicts' keys to 'contradiction_of'
   export [--destination DIR]    Export active entries
   import <source> [--apply] [--overwrite]
                                 Import a pack (default dry-run)
   audit <id>                    Show audit events filtered for an entry
+  audit curation [--since DATE] [--kind K] [--source-model M]
+                                Show curation log events
   index                         Print indexes/all.json (regenerates if missing)
   health [--fix]                Run integrity checks
   evals [--reporter json|text]  Run the v1 regression suite
@@ -113,6 +139,25 @@ export async function run(argv: string[]): Promise<void> {
     case "link":
     case "link-entries":
       await cmdLink(opts);
+      return;
+    case "discard":
+    case "discard-staged":
+      await cmdDiscard(opts);
+      return;
+    case "edit-staged":
+      await cmdEditStaged(opts);
+      return;
+    case "propose-edge":
+      await cmdProposeEdge(opts);
+      return;
+    case "commit-edge":
+      await cmdCommitEdge(opts);
+      return;
+    case "discard-edge":
+      await cmdDiscardEdge(opts);
+      return;
+    case "migrate-relations":
+      await cmdMigrateRelations(opts);
       return;
     case "export":
       await cmdExport(opts);
@@ -308,6 +353,10 @@ async function cmdGetEntry(opts: CommonOpts): Promise<void> {
   if (!entry) {
     throw new Error(`get: entry ${id} not found`);
   }
+  const incoming =
+    entry.location.area === "entries"
+      ? await findIncomingEdges(opts.projectRoot, id)
+      : {};
   if (opts.json) {
     process.stdout.write(
       `${JSON.stringify(
@@ -316,6 +365,7 @@ async function cmdGetEntry(opts: CommonOpts): Promise<void> {
           path: entry.location.relativePath,
           frontmatter: entry.frontmatter,
           body: entry.body,
+          incoming_edges: incoming,
         },
         null,
         2,
@@ -324,6 +374,13 @@ async function cmdGetEntry(opts: CommonOpts): Promise<void> {
     return;
   }
   process.stdout.write(entryToFileText(entry));
+  const incomingKinds = Object.keys(incoming).sort();
+  if (incomingKinds.length > 0) {
+    process.stdout.write("\n## Incoming edges\n\n");
+    for (const k of incomingKinds) {
+      process.stdout.write(`- ${k}: ${incoming[k]!.join(", ")}\n`);
+    }
+  }
 }
 
 async function cmdStage(opts: CommonOpts): Promise<void> {
@@ -450,14 +507,19 @@ async function cmdImport(opts: CommonOpts): Promise<void> {
 }
 
 async function cmdAudit(opts: CommonOpts): Promise<void> {
-  const id = opts.rest.shift();
-  if (!id || !isSafeId(id)) throw new Error("audit: <id> is required");
+  const first = opts.rest.shift();
+  if (!first) throw new Error("audit: <id> or 'curation' is required");
+  if (first === "curation") {
+    await cmdAuditCuration(opts);
+    return;
+  }
+  if (!isSafeId(first)) throw new Error("audit: <id> is required");
   await requireProject(opts.projectRoot);
-  const events = await readAuditForEntry(opts.projectRoot, id);
+  const events = await readAuditForEntry(opts.projectRoot, first);
   if (opts.json) {
     process.stdout.write(
       `${JSON.stringify(
-        { entry_id: id, events: events.map((e) => e.raw) },
+        { entry_id: first, events: events.map((e) => e.raw) },
         null,
         2,
       )}\n`,
@@ -465,12 +527,168 @@ async function cmdAudit(opts: CommonOpts): Promise<void> {
     return;
   }
   if (events.length === 0) {
-    process.stdout.write(`audit: no events for ${id}\n`);
+    process.stdout.write(`audit: no events for ${first}\n`);
     return;
   }
   for (const e of events) {
     process.stdout.write(`${e.ts}  ${e.action}  (${e.source})\n`);
   }
+}
+
+async function cmdAuditCuration(opts: CommonOpts): Promise<void> {
+  await requireProject(opts.projectRoot);
+  const since = takeFlag(opts.rest, "since");
+  const kindFilter = takeFlag(opts.rest, "kind");
+  const sourceModelFilter = takeFlag(opts.rest, "source-model");
+  let events = await readCurationLog(opts.projectRoot);
+  if (since) events = events.filter((e) => e.ts >= since);
+  if (kindFilter) {
+    events = events.filter((e) => e.raw["kind"] === kindFilter);
+  }
+  if (sourceModelFilter) {
+    events = events.filter((e) => e.raw["source_model"] === sourceModelFilter);
+  }
+  if (opts.json) {
+    process.stdout.write(
+      `${JSON.stringify(
+        { events: events.map((e) => e.raw) },
+        null,
+        2,
+      )}\n`,
+    );
+    return;
+  }
+  if (events.length === 0) {
+    process.stdout.write("audit curation: no events\n");
+    return;
+  }
+  for (const e of events) {
+    const k = String(e.raw["kind"] ?? "?");
+    const sm = String(e.raw["source_model"] ?? "?");
+    const id =
+      (e.raw["staged_id"] as string | undefined) ??
+      (e.raw["entry_id"] as string | undefined) ??
+      "";
+    process.stdout.write(`${e.ts}  ${k.padEnd(8)} ${sm.padEnd(20)} ${id}\n`);
+  }
+}
+
+async function cmdDiscard(opts: CommonOpts): Promise<void> {
+  const id = opts.rest.shift();
+  if (!id) throw new Error("discard: <staged_id> is required");
+  const rationale = takeFlag(opts.rest, "rationale");
+  const sourceModel = takeFlag(opts.rest, "source-model");
+  await requireProject(opts.projectRoot);
+  const result = await discardStaged(opts.projectRoot, {
+    staged_id: id,
+    ...(rationale ? { rationale } : {}),
+    ...(sourceModel ? { source_model: sourceModel } : {}),
+  });
+  emit(opts, "discard_staged:", result);
+}
+
+async function cmdProposeEdge(opts: CommonOpts): Promise<void> {
+  const source = opts.rest.shift();
+  const relation = opts.rest.shift();
+  const target = opts.rest.shift();
+  if (!source || !relation || !target) {
+    throw new Error(
+      "propose-edge: <source_id> <relation> <target_id> are required",
+    );
+  }
+  const rationale = takeFlag(opts.rest, "rationale");
+  const sourceModel = takeFlag(opts.rest, "source-model");
+  const sourceRef = takeFlag(opts.rest, "source-ref");
+  const proposalId = takeFlag(opts.rest, "proposal-id");
+  await requireProject(opts.projectRoot);
+  const result = await proposeEdge(opts.projectRoot, {
+    source_id: source,
+    relation,
+    target_id: target,
+    ...(rationale ? { rationale } : {}),
+    ...(sourceModel ? { source_model: sourceModel } : {}),
+    ...(sourceRef ? { source_ref: sourceRef } : {}),
+    ...(proposalId ? { proposal_id: proposalId } : {}),
+  });
+  emit(opts, "propose_edge:", result);
+}
+
+async function cmdCommitEdge(opts: CommonOpts): Promise<void> {
+  const proposalId = opts.rest.shift();
+  const source = opts.rest.shift();
+  const relation = opts.rest.shift();
+  const target = opts.rest.shift();
+  if (!proposalId || !source || !relation || !target) {
+    throw new Error(
+      "commit-edge: <proposal_id> <source_id> <relation> <target_id> are required",
+    );
+  }
+  const rationale = takeFlag(opts.rest, "rationale");
+  await requireProject(opts.projectRoot);
+  const result = await commitEdge(opts.projectRoot, {
+    proposal_id: proposalId,
+    source_id: source,
+    relation,
+    target_id: target,
+    ...(rationale ? { rationale } : {}),
+  });
+  emit(opts, "commit_edge:", result);
+}
+
+async function cmdDiscardEdge(opts: CommonOpts): Promise<void> {
+  const proposalId = opts.rest.shift();
+  const source = opts.rest.shift();
+  const relation = opts.rest.shift();
+  const target = opts.rest.shift();
+  if (!proposalId || !source || !relation || !target) {
+    throw new Error(
+      "discard-edge: <proposal_id> <source_id> <relation> <target_id> are required",
+    );
+  }
+  const rationale = takeFlag(opts.rest, "rationale");
+  await requireProject(opts.projectRoot);
+  const result = await discardEdge(opts.projectRoot, {
+    proposal_id: proposalId,
+    source_id: source,
+    relation,
+    target_id: target,
+    ...(rationale ? { rationale } : {}),
+  });
+  emit(opts, "discard_edge:", result);
+}
+
+async function cmdMigrateRelations(opts: CommonOpts): Promise<void> {
+  await requireProject(opts.projectRoot);
+  const dryRun = takeBool(opts.rest, "dry-run");
+  const { migrateRelations } = await import("../store/migrate-relations.ts");
+  const result = await migrateRelations(opts.projectRoot, { dryRun });
+  emit(opts, "migrate_relations:", result);
+}
+
+async function cmdEditStaged(opts: CommonOpts): Promise<void> {
+  const id = opts.rest.shift();
+  if (!id) throw new Error("edit-staged: <staged_id> is required");
+  const claim = takeFlag(opts.rest, "claim");
+  const confidence = takeFlag(opts.rest, "confidence");
+  const tagsArg = takeFlag(opts.rest, "tags");
+  const bodyArg = takeFlag(opts.rest, "body");
+  const rationale = takeFlag(opts.rest, "rationale");
+  const sourceModel = takeFlag(opts.rest, "source-model");
+  const input: Record<string, unknown> = { staged_id: id };
+  if (claim !== undefined) input["claim"] = claim;
+  if (confidence !== undefined) input["confidence"] = confidence;
+  if (tagsArg !== undefined) {
+    input["tags"] = tagsArg
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+  }
+  if (bodyArg !== undefined) input["body"] = await resolveContent(bodyArg);
+  if (rationale !== undefined) input["rationale"] = rationale;
+  if (sourceModel !== undefined) input["source_model"] = sourceModel;
+  await requireProject(opts.projectRoot);
+  const result = await editStaged(opts.projectRoot, input);
+  emit(opts, "edit_staged:", result);
 }
 
 async function cmdIndex(opts: CommonOpts): Promise<void> {

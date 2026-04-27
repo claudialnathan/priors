@@ -113,7 +113,7 @@ test("validateEntryFrontmatter validates relations object and ids", () => {
     base({
       relations: {
         supersedes: ["pri-ok"],
-        contradicts: ["BadRef"],
+        contradiction_of: ["BadRef"],
         reinforces: ["pri-ok-2"],
         derived_from: [],
         bogus: [],
@@ -124,7 +124,9 @@ test("validateEntryFrontmatter validates relations object and ids", () => {
   if (!r.ok) {
     assert.ok(r.errors.some((e) => /unknown relations key: bogus/.test(e)));
     assert.ok(
-      r.errors.some((e) => /relations.contradicts contains invalid id: BadRef/.test(e)),
+      r.errors.some((e) =>
+        /relations.contradiction_of contains invalid id: BadRef/.test(e),
+      ),
     );
   }
 });

@@ -22,7 +22,7 @@ function makeCandidate(overrides: Partial<{
 }>): Record<string, unknown> {
   return {
     kind: "decision",
-    claim: "We will write tests before merging.",
+    claim: "Tests must cover empty, normal, and adversarial cases.",
     reasoning: "Reduces regressions and aligns with the project's definition of done.",
     confidence: "medium",
     evidence: [
@@ -198,7 +198,7 @@ test("stage_learning dedups against active entries with very similar claims", as
     await seedEntry(root, clock, {
       id: "pri-existing-tests",
       kind: "decision",
-      claim: "We will write tests before merging.",
+      claim: "Tests must cover empty, normal, and adversarial cases.",
     });
     const result = await stageLearning(
       root,

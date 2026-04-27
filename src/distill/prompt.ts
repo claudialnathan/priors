@@ -49,8 +49,9 @@ For each candidate, you provide:
 - reasoning: a short explanation of why the evidence supports the claim
 - confidence: high (the quote directly says it), medium (reasonable inference
   from quoted material), low (speculative; flagging for user attention)
-- relations: optional links to existing entries that this supersedes,
-  contradicts, reinforces, or derives from. Use the IDs from the
+- relations: optional links to existing entries via the typed-edge
+  vocabulary (supersedes, contradiction_of, derived_from, reinforces,
+  caused_by, blocks, depends_on, refutes). Use the IDs from the
   existing_entries list provided to you.
 - flags: optional markers for the user — "needs_verification" if the claim
   rests on a single weak quote; "user_attention" if it's important;

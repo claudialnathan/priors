@@ -51,6 +51,10 @@ export function distillationRejectsLog(projectRoot: string): string {
   return path.join(auditDir(projectRoot), "distillation-rejects.log");
 }
 
+export function curationLog(projectRoot: string): string {
+  return path.join(auditDir(projectRoot), "curation.log");
+}
+
 export function exportsDir(projectRoot: string): string {
   return path.join(priorsRoot(projectRoot), "exports");
 }

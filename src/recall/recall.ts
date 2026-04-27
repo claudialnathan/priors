@@ -6,10 +6,11 @@ import {
   type EntryKind,
   type EntryStatus,
 } from "../schema/entry.ts";
+import { RELATION_KINDS, type RelationKind } from "../curation/curation.ts";
 import { listEntries, type LoadedEntry } from "../store/entries.ts";
 
 export interface RecallRelationFilter {
-  kind: "supersedes" | "contradicts" | "reinforces" | "derived_from";
+  kind: RelationKind;
   direction: "from" | "to";
   target: string;
 }
@@ -128,10 +129,10 @@ function parseRelationFilter(raw: unknown): RecallRelationFilter {
   const kind = r["kind"];
   if (
     typeof kind !== "string" ||
-    !["supersedes", "contradicts", "reinforces", "derived_from"].includes(kind)
+    !RELATION_KINDS.includes(kind as RelationKind)
   ) {
     throw new Error(
-      "recall.relation.kind must be one of supersedes, contradicts, reinforces, derived_from",
+      `recall.relation.kind must be one of ${RELATION_KINDS.join(", ")}`,
     );
   }
   const direction = r["direction"];
