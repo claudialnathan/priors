@@ -6,7 +6,8 @@ export type EntryKind =
   | "constraint"
   | "pattern"
   | "question"
-  | "hypothesis";
+  | "hypothesis"
+  | "rule";
 
 export type EntryStatus =
   | "active"
@@ -17,6 +18,10 @@ export type EntryStatus =
 
 export type EntryConfidence = "high" | "medium" | "low";
 
+export type EntryAuthor = "user" | "agent";
+
+export type EntryPriority = "high" | "medium" | "low";
+
 export const ENTRY_KINDS: readonly EntryKind[] = [
   "decision",
   "failure",
@@ -24,6 +29,7 @@ export const ENTRY_KINDS: readonly EntryKind[] = [
   "pattern",
   "question",
   "hypothesis",
+  "rule",
 ] as const;
 
 export const ENTRY_STATUSES: readonly EntryStatus[] = [
@@ -82,7 +88,25 @@ export interface EntryFrontmatter {
   tags: string[];
   source_ref?: string;
   stale_reason?: string;
+  /** Stable human-facing label such as "D-001", "F-004", "R-002". */
+  readable_id?: string;
+  /** Who authored this entry. user-authored entries skip distillation gates. */
+  author?: EntryAuthor;
+  /** Priority hint, mostly used for rules. */
+  priority?: EntryPriority;
 }
+
+export const READABLE_ID_KIND_PREFIX: Record<EntryKind, string> = {
+  decision: "D",
+  failure: "F",
+  constraint: "C",
+  pattern: "P",
+  question: "Q",
+  hypothesis: "H",
+  rule: "R",
+};
+
+export const READABLE_ID_RE = /^[A-Z]-\d{3,}$/;
 
 export interface Entry {
   frontmatter: EntryFrontmatter;
@@ -201,6 +225,9 @@ export function validateEntryFrontmatter(
     "tags",
     "source_ref",
     "stale_reason",
+    "readable_id",
+    "author",
+    "priority",
   ]);
   for (const key of Object.keys(r)) {
     if (!allowedKeys.has(key)) {
@@ -224,6 +251,25 @@ export function validateEntryFrontmatter(
   };
   if (typeof r["source_ref"] === "string") fm.source_ref = r["source_ref"];
   if (typeof r["stale_reason"] === "string") fm.stale_reason = r["stale_reason"];
+
+  if (r["readable_id"] !== undefined) {
+    if (typeof r["readable_id"] !== "string" || !READABLE_ID_RE.test(r["readable_id"])) {
+      return err(`readable_id must match ${READABLE_ID_RE} (got ${String(r["readable_id"])})`);
+    }
+    fm.readable_id = r["readable_id"];
+  }
+  if (r["author"] !== undefined) {
+    if (r["author"] !== "user" && r["author"] !== "agent") {
+      return err(`author must be "user" or "agent"`);
+    }
+    fm.author = r["author"];
+  }
+  if (r["priority"] !== undefined) {
+    if (r["priority"] !== "high" && r["priority"] !== "medium" && r["priority"] !== "low") {
+      return err(`priority must be one of high, medium, low`);
+    }
+    fm.priority = r["priority"];
+  }
   return ok(fm);
 }
 

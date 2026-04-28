@@ -1,0 +1,19 @@
+{
+  "name": "priors",
+  "owner": {
+    "name": "Claudia Nathan",
+    "url": "https://github.com/claudialnathan"
+  },
+  "plugins": [
+    {
+      "name": "priors",
+      "source": "./",
+      "description": "Always-on project memory for Claude Code. Decisions, dead ends, constraints, and rules survive sessions; agents push back on rejected approaches automatically.",
+      "version": "1.0.0-rc.1",
+      "homepage": "https://github.com/claudialnathan/priors",
+      "repository": "https://github.com/claudialnathan/priors",
+      "license": "MIT",
+      "keywords": ["memory", "project-memory", "agents", "claude-code", "cursor", "mcp"]
+    }
+  ]
+}

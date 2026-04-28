@@ -4,113 +4,120 @@ Claude Code-specific notes for this repo. The durable contract lives in `AGENTS.
 
 ## What this project is
 
-Priors is the project's record of itself: decisions, dead ends, constraints, and open questions stored as structured markdown entries in `.priors/`, exposed over MCP. The persistent subject is the project — not the user, not the AI.
+Priors is always-on project memory for Claude Code (and Cursor). The same npm package ships both the CLI and the plugin. When installed in Claude Code, Priors:
 
-If you are tempted to add user preferences, identity, or psychology to the store, stop. That belongs to a different category of product. See `AGENTS.md` for the framing test.
+- loads a compact orientation brief at `SessionStart`
+- detects natural-language log intent on `UserPromptSubmit`
+- records checkpoints on `PreCompact` and `Stop`
+- runs an MCP server bundled with the plugin
+- exposes slash commands (auto-namespaced as `/priors:<name>`): `/priors:status`, `/priors:brief`, `/priors:recall`, `/priors:why`, `/priors:impact`, `/priors:reflect`, `/priors:log`, `/priors:rules`, `/priors:rule-add`, `/priors:export`
+- ships a `priors-steward` subagent for pushback and review-queue staging
+
+The persistent subject is the **project** — not the user, not the AI.
 
 ## Source of truth (read in order)
 
-1. `AGENTS.md` — operating contract. Non-negotiables and surface definitions.
-2. `docs/project-brief.md` — positioning. What Priors is and is not.
+1. `AGENTS.md` — operating contract (modes, non-negotiables, surfaces).
+2. `docs/plugin-architecture.md` — plugin/CLI/MCP wiring.
 3. `docs/specs/brief-resource.md` — locked spec for `priors://brief`.
-4. `docs/specs/staged-distillation.md` — locked spec for `stage_learning`.
+4. `docs/specs/staged-distillation.md` — locked spec for `stage_learning` (the review-queue path).
 
-If anything in this file conflicts with the above, the above wins.
-
-## Repo layout (Claude Code orientation)
+## Repo layout
 
 ```text
-AGENTS.md                  # the contract (read first)
-README.md                  # public-facing intro
-SECURITY.md                # safety boundaries
-docs/                      # public specs and guides
-  project-brief.md
+.claude-plugin/plugin.json     # plugin manifest
+.mcp.json                      # MCP server config (plugin form, root)
+skills/<name>/SKILL.md         # one per slash command (auto-namespaced as /priors:<name>)
+agents/priors-steward.md       # the steward subagent
+hooks/hooks.json               # SessionStart, UserPromptSubmit, PreCompact, Stop
+hooks/scripts/                 # bounded shell scripts called by hooks
+.cursor/rules/priors.mdc       # Cursor-side always-apply rule
+.cursor/mcp.json               # Cursor MCP server config
+bin/priors.js                  # CLI + MCP via subcommand
+src/                           # TypeScript implementation
+  store/                       # entry I/O, index, config (mode), audit, paths
+  brief/                       # deterministic brief assembly
+  distill/                     # stage_learning verification (quote-or-refuse)
+  curation/                    # edits, edges, mark-stale
+  recall/                      # search over the index
+  rules/                       # user-authored rule + /priors:log direct write
+  intent/                      # log-intent detector, significance gate, pushback formatter
+  session/                     # session log, /impact, /reflect
+  schema/                      # frontmatter + MCP input/output schemas
+  util/                        # uuid, yaml, tokens, readable-id allocator
+tests/
+  unit/                        # per-module unit tests
+  regression/                  # the seven AGENTS.md eval tasks
+  snapshots/                   # brief-determinism guard
+docs/
+  plugin-architecture.md       # this is the new architectural overview
+  integrations.md              # Cursor / Claude Code / Codex install snippets
+  mcp-architecture.md          # legacy CLI/MCP runtime details (still accurate)
+  evals.md
   specs/
     brief-resource.md
     staged-distillation.md
-  integrations.md          # MCP client config snippets
-  github-workflow.md
-  evals.md                 # regression suite docs
-src/                       # TypeScript source
-  store/                   # entry I/O, index generation
-  brief/                   # deterministic brief assembly
-  distill/                 # stage_learning verification
-  mcp/                     # MCP server, resource and tool handlers
-  cli/                     # CLI mirroring MCP surface
-  schema/                  # entry/MCP schemas
-  util/                    # uuid, yaml, tokens
-tests/
-  unit/
-  regression/              # 7 AGENTS.md eval tasks
-  fixtures/
-bin/
-  priors.js                # executable wrapper (CLI + MCP via subcommand)
-.priors/                   # this repo's own dogfooded store (committed)
-internal/                  # private working copies of specs (gitignored)
+.priors/                       # this repo dogfoods Priors (gitignored — not committed)
 ```
 
-The canonical store for any Priors-equipped project lives at `.priors/` **inside that project's repo**. There is no shared `~/.priors` directory. Identity is the UUID in `.priors/project.json`, not the directory path.
+The store at `.priors/` belongs to the host project. When Priors is installed in another repo, `.priors/` lives in *that* repo. There is no shared `~/.priors`.
 
-## MCP surface (v1)
+## Plugin / CLI surface (Claude Code orientation)
 
-4 resources, 11 tools. Names and shapes are stable across v1.
+The plugin is the same npm package. Slash commands shell into `node ${CLAUDE_PLUGIN_ROOT}/bin/priors.js …` rather than depending on a global install. Hooks pass `${CLAUDE_PROJECT_DIR}` (falls back to `$PWD`) so the store lands in the user's project, not the plugin's directory.
 
-Resources:
-
-- `priors://brief`
-- `priors://index`
-- `priors://entry/{id}`
-- `priors://audit/{id}` — filtered audit slice for a single entry (kept under a narrower contract than the v0.3 version)
-
-Tools:
-
-- `recall(query, filters)`
-- `get_entry(id)`
-- `stage_learning(...)` — substring + Dice-coefficient grounding-floor verification; writes to `staged/`; emits `propose`/`stage`/`reject` to `audit/curation.log`
-- `edit_staged(staged_id, ...)` — modify a staged candidate before commit (evidence is immutable)
-- `discard_staged(staged_id, rationale?)` — drop a staged candidate without committing
-- `commit_learning(staged_id)` — promotes to active; optional `commitThreshold` in `config.json` gates against the composite quality score
-- `mark_stale(id, reason)`
-- `link_entries(source_id, relation, target_id)` — relations: `supersedes`, `contradiction_of`, `derived_from`, `reinforces`, `caused_by`, `blocks`, `depends_on`, `refutes`
-- `propose_edge(...)` / `commit_edge(...)` / `discard_edge(...)` — proposal-then-accept flow for typed edges; proposals aren't persisted, the curation log is the record
-
-Prompts (MCP prompt templates):
-
-- `priors_distill` — renders the conservative-archivist system prompt with source content interpolated, used by the calling agent to produce candidates that are then verified by `stage_learning`.
-
-## What is NOT in the v1 surface
-
-These existed in the legacy v0.3 (now tagged `legacy/v0.3.0`) and have been **removed** in v1:
-
-- `priors.init`, `priors.reinforce`, `priors.writeEntry`, `priors.updateEntry`, `priors.discard`
-- `priors.emitConstraint`, `priors.applyEmission`, `priors.health`, `priors.export` (export/import return as plain CLI verbs and a different shape)
-- Resources: `priors://orientation/head`, `priors://operator`, `priors://state`, `priors://compiled/harness-reminders`
-- Activation/decay metadata fields: `activation_score`, `decayed_activation_score`, `activation_state`, `helpful_count`, `decay_half_life_days`, `retrieval_policy`
-- The `~/.priors/projects/<repo-id>/` neutral store layout
-
-If you are tempted to reintroduce any of these, see "What never to do" in `AGENTS.md` and "Future considerations" in `docs/project-brief.md`. Most are explicitly deferred to v2+.
-
-## Local development
+Useful surfaces while developing:
 
 ```bash
-npm test              # run the regression suite + unit tests
-node bin/priors.js brief --project-root "$PWD"
-node bin/priors.js mcp --project-root "$PWD"        # speak MCP over stdio
-node bin/priors.js init-config --client claude --project-root "$PWD" --dry-run
+npm test                                                     # unit + regression + snapshots
+node bin/priors.js status --project-root .                   # mode + counts + last entry
+node bin/priors.js mode auto                                 # toggle write mode
+node bin/priors.js log "<claim>" --kind decision             # direct user-authored write
+node bin/priors.js rule add "<rule>" --priority high         # direct user-authored rule
+node bin/priors.js recall --query "<topic>" --limit 8        # search the index
+node bin/priors.js why                                       # what's been consulted this session
+node bin/priors.js impact                                    # session-impact report
+node bin/priors.js reflect                                   # drift / freshness flags
+node bin/priors.js mcp --project-root .                      # speak MCP over stdio
 ```
 
-Node 25+ is required because the runtime imports `.ts` directly via Node's native type stripping. Zero runtime dependencies (this is a hard constraint — see `AGENTS.md`).
+Node 25+ is required because the runtime imports `.ts` directly via Node's native type stripping. Zero runtime dependencies (hard constraint).
 
 ## Editing guidance for Claude Code
 
-- Prefer changes in `src/<module>/` and `tests/<unit|regression>/`. Keep modules small and focused.
-- Do not add network-dependent runtime packages. Dev-only types are fine.
-- Do not reintroduce v0.3 surfaces (decay scoring, reinforce, emit_constraint) without an explicit user request and a new spec doc that supersedes the relevant section.
-- When you make a non-trivial implementation choice, stage it: write a `decision` or `failure` entry to `.priors/staged/` (via `stage_learning` or `priors stage`). The repo dogfoods. Don't add stray planning documents.
+- Prefer changes in `src/<module>/` and `tests/<unit|regression>/`.
+- Slash commands live as `skills/<name>/SKILL.md`. Keep them short — they're prompt scaffolds, not implementation. Plugin name (`priors`) auto-namespaces them as `/priors:<name>`.
 
-## Skills/subagents that may help
+### Personal vs shipped — gitignore convention
 
-The handover doc (`internal/claude-code-handover.md`, gitignored) lists user-installed skills that can help during implementation: `using-superpowers`, `writing-plans`, `mcp-builder`, `test-driven-development`, `subagent-driven-development`, `systematic-debugging`, `requesting-code-review`. Invoke them via the standard skill-loading mechanism. They are tools, not authorities — `AGENTS.md` and the specs win.
+When working on the Priors plugin itself, you'll often want personal subagents, skills, or notes that don't ship to plugin users. The convention:
+
+| Concern | Personal (gitignored) | Shipped (tracked) |
+| --- | --- | --- |
+| Project memory | `CLAUDE.local.md` | `CLAUDE.md` |
+| Subagents | `.claude/agents/<name>.md` | `agents/priors-steward.md` |
+| Skills / slash commands | `.claude/skills/<name>/SKILL.md` | `skills/<name>/SKILL.md` |
+| Settings | `.claude/settings.local.json` | `.claude-plugin/plugin.json` |
+| Cursor rules | `.cursor/rules.local/<name>.mdc` | `.cursor/rules/priors.mdc` |
+
+The leading dot (`.claude/...`) means "personal Claude Code config for this repo." No leading dot (`agents/`, `skills/`) means "the plugin's own published asset."
+- Hook scripts in `hooks/scripts/` must be bounded. They run on every session start, every prompt, and at every compact/stop. Cost discipline is non-optional.
+- The `priors hook <event>` CLI is the cheap, deterministic surface that hooks should call. Do not embed agent prompts inside hook scripts.
+- When you make a non-trivial implementation choice, log it: `priors log "<choice>" --kind decision --rationale "<why>"`. The repo dogfoods.
+
+## What changed in the plugin rework (2026-04-28)
+
+- Added `rule` as an entry kind. Rules can be user-authored (direct write) or agent-proposed (review queue).
+- Added `mode` to `.priors/config.json` — `auto` (with significance gate) and `manual`.
+- Added readable IDs (`D-001`, `F-004`, `R-002`) on top of canonical slug IDs. Human-facing UX shows readable; canonical persists in metadata, JSON, and exports.
+- Added the plugin scaffold (`.claude-plugin/`, `skills/`, `agents/`, `hooks/`, `.mcp.json`).
+- Added Cursor compatibility (`.cursor/rules/priors.mdc`, `.cursor/mcp.json`).
+- Added `src/intent/` (log-intent detector, significance gate, pushback formatter).
+- Added `src/session/` (session log, /impact, /reflect).
+- Added `src/rules/` (`addUserRule`, `userLog`, `listRules`).
+- Added new CLI subcommands: `mode`, `status`, `log`, `rules`, `rule add`, `why`, `impact`, `reflect`, `resolve`, `hook`.
+
+What did **not** change: MCP server, deterministic brief, append-only audit, quote-or-refuse, idempotency keys, project-as-subject, the `.priors/` layout, the seven-task regression suite, the staging path for agent-proposed candidates.
 
 ## Returning to the legacy implementation
 
@@ -118,4 +125,4 @@ The handover doc (`internal/claude-code-handover.md`, gitignored) lists user-ins
 git checkout legacy/v0.3.0
 ```
 
-The v0.3 MCP server (with decay/reinforce/emit_constraint and `~/.priors` store) is preserved at that tag. It is no longer built or tested on `main`/`reval`.
+The pre-rework MCP server (with `~/.priors`, decay scoring, `priors.reinforce`, `priors.emitConstraint`) is preserved at that tag. It is no longer built or tested on `main`.

@@ -1,9 +1,12 @@
 # Integrations
 
-Priors is a stdio Model Context Protocol (MCP) server. Any MCP-aware client
-can run it. This document collects ready-to-paste configuration snippets for
-the three clients we test against: **Claude Code**, **Cursor**, and the
-**Codex CLI**.
+Priors ships as a Claude Code plugin (preferred) and as an MCP server you can
+wire into any MCP-aware client. This document covers both:
+
+- **Claude Code plugin install** — the easiest path. Bundles slash commands,
+  the `priors-steward` subagent, hooks, and the MCP server.
+- **Manual MCP wiring** — for clients without plugin support (Cursor, Codex
+  CLI, or any other MCP client).
 
 The CLI command `priors init-config --client <name>` will print these same
 snippets, parameterized with the absolute paths for your machine. Priors
@@ -33,11 +36,63 @@ The process should idle on stdin. Send `Ctrl-D` (or `Ctrl-C`) to exit.
 
 ---
 
-## Claude Code
+## Claude Code — plugin install (recommended)
 
-Claude Code reads MCP servers from a workspace `.mcp.json` (preferred for
-per-repo setup) or from `~/.claude/settings.json` (per-user). Both files
-accept the same shape.
+The Priors repo ships its own single-plugin marketplace
+(`.claude-plugin/marketplace.json`), so installation is two slash commands
+from any Claude Code session:
+
+```
+/plugin marketplace add https://github.com/claudialnathan/priors
+/plugin install priors@priors
+```
+
+Open a fresh chat in your project. The `SessionStart` hook creates `.priors/`
+(if it does not exist) and loads a compact orientation brief. Try `/priors`
+to see the status line.
+
+### From a local clone (development)
+
+```bash
+git clone https://github.com/claudialnathan/priors.git
+cd priors
+npm install
+npm test
+```
+
+Then point Claude Code at the local clone:
+
+```
+/plugin marketplace add /abs/path/to/clone
+/plugin install priors@priors
+```
+
+The plugin scaffold lives at `<plugin-root>/.claude-plugin/plugin.json`,
+`.claude-plugin/marketplace.json`, `skills/<name>/SKILL.md` (one per slash
+command), `agents/`, `hooks/`, and `.mcp.json`. Auto-discovery wires
+everything.
+
+### What the plugin gives you
+
+| Surface | Source |
+| --- | --- |
+| Slash commands (auto-namespaced as `/priors:<name>`): `/priors:status`, `/priors:brief`, `/priors:recall`, `/priors:why`, `/priors:impact`, `/priors:reflect`, `/priors:log`, `/priors:rules`, `/priors:rule-add`, `/priors:export` | `skills/<name>/SKILL.md` |
+| `priors-steward` subagent (pushback, bounded staging) | `agents/priors-steward.md` |
+| `SessionStart`, `UserPromptSubmit`, `PreCompact`, `Stop` hooks | `hooks/hooks.json` |
+| MCP server (`priors://brief`, `recall`, `stage_learning`, …) | `.mcp.json` |
+
+### Verify
+
+Open a new chat in your project and ask:
+
+> Read `priors://brief` and summarize the project trajectory in three lines.
+
+If the brief loads, the plugin is wired up. Try `/priors` to see the status
+line.
+
+## Claude Code — MCP-only install
+
+If you don't want the plugin (just the MCP tools):
 
 ```json
 {
@@ -55,27 +110,28 @@ accept the same shape.
 }
 ```
 
-Notes:
-
-- Use absolute paths. Claude Code launches the process from its own working
-  directory, not yours.
-- The server logs nothing to stdout (stdout is reserved for JSON-RPC). Use
-  `priors health --project-root <root>` from a terminal if Claude Code
-  reports a connection failure.
-- After editing `.mcp.json`, reload the workspace.
-
-To verify Priors is wired up, ask the agent:
-
-> Read `priors://brief` and summarize the project trajectory in three lines.
-
-If the brief loads, the integration works. The first thing every Priors-aware
-agent should do in a session is read this resource.
+Paste into `.mcp.json` (workspace) or `~/.claude/settings.json` (per-user).
+Use absolute paths.
 
 ---
 
 ## Cursor
 
-Cursor stores MCP servers in `.cursor/mcp.json` at the workspace root.
+Cursor doesn't have a plugin surface equivalent to Claude Code's plugin
+system, but Priors ships two scaffolding files that get you most of the
+behavior:
+
+- `.cursor/rules/priors.mdc` — always-apply operating rule (pushback format,
+  natural-language log intents, cost discipline). Cursor surfaces this in
+  every chat for the workspace.
+- `.cursor/mcp.json` — wires the MCP server.
+
+After cloning Priors as a sibling project and adding it as an MCP server, copy
+or symlink the `.cursor/rules/priors.mdc` file into your project's `.cursor/`
+directory (Cursor only loads rules from the workspace, not from a separate
+plugin).
+
+`.cursor/mcp.json`:
 
 ```json
 {
@@ -100,6 +156,9 @@ Notes:
 - The Cursor agent will list Priors tools (`recall`, `stage_learning`, etc.)
   alongside its built-in tools. Tools that return JSON are surfaced as
   `structuredContent` automatically.
+- Slash commands aren't a Cursor primitive. Use natural language ("recall what
+  we decided about X", "this is a rule: …") and the rule will route the
+  intent through the right tool.
 
 ---
 

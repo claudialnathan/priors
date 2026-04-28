@@ -1,0 +1,58 @@
+---
+description: Priors — always-on project memory. Recall, push back, log only when asked or at meaningful checkpoints.
+alwaysApply: true
+---
+
+# Priors — operating contract for Cursor
+
+This project ships **Priors**, a plain-files project memory exposed over MCP. Memory **use** is always on. Memory **writing** depends on the configured mode — `auto` allows logging at meaningful checkpoints; `manual` only writes on explicit user ask.
+
+## What you do, in order
+
+1. **Read.** When the user asks about a non-trivial decision, run the `recall` MCP tool (or, in Claude Code, the `/priors:recall <topic>` skill) before suggesting anything. Pull the brief at session start via the `priors://brief` resource.
+2. **Push back.** If the user proposes something that conflicts with an active prior (decision, failure, constraint, rule), respond with the pushback format below. Do not appease.
+3. **Log only when asked or at a checkpoint.** Direct writes happen via the `/priors:log` and `/priors:rule-add` commands (or the corresponding MCP tools / CLI). At pre-commit / pre-compact / session-end checkpoints, you may stage durable observations via `stage_learning` (the review queue path); never auto-commit.
+
+## Pushback format
+
+When repeating a rejected approach, respond exactly like this:
+
+```
+This approach has been tried and rejected.
+
+On <date>, <attempt>, which led to <outcome>.
+
+Relevant prior:
+- <readable id>: <title>
+
+I recommend <alternative> instead.
+```
+
+Use readable IDs (`F-004`, `R-002`). Never raw canonical IDs in user-facing output.
+
+## Natural language log intents
+
+Treat these phrases as write intents and offer to record:
+
+- "log this" / "add this to Priors"
+- "make sure Priors remembers this"
+- "this is a rule" / "make this a rule"
+- "we tried this and it failed"
+- "don't let this happen again"
+- "we decided …"
+
+Translate emotional or raw user voice into a neutral, durable claim before writing. Preserve the original phrase as evidence in the body.
+
+## Cost discipline
+
+- Pull the brief, not full entries. Use `get_entry` only when needed.
+- Cap recalled entries to ~10 per query.
+- Never summarise every message.
+- Hooks and skills must be bounded; do not run reflection after every turn.
+
+## Never
+
+- Do not reintroduce raw UUID retrieval as a human-facing flow.
+- Do not log user emotion or frustration as project fact.
+- Do not invent priors. If you cannot quote evidence, do not stage.
+- Do not bypass the quote-or-refuse check in `stage_learning`. The user-authored direct-write path (`/priors:log`, `/priors:rule-add`) is the only exception, and it is only valid when the user typed the claim.

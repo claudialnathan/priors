@@ -21,6 +21,9 @@ export interface IndexEntryRow {
   as_of: string;
   updated_at: string;
   path: string;
+  readable_id?: string;
+  author?: "user" | "agent";
+  priority?: "high" | "medium" | "low";
 }
 
 export interface IndexCounts {
@@ -48,16 +51,22 @@ export function buildIndex(
   generatedAt: string,
 ): IndexDocument {
   const rows: IndexEntryRow[] = active
-    .map((entry) => ({
-      id: entry.frontmatter.id,
-      kind: entry.frontmatter.kind,
-      claim: entry.frontmatter.claim,
-      status: entry.frontmatter.status,
-      confidence: entry.frontmatter.confidence,
-      as_of: entry.frontmatter.as_of,
-      updated_at: entry.frontmatter.updated_at,
-      path: relativeFromPriors(projectRoot, entry.location.filePath),
-    }))
+    .map((entry) => {
+      const row: IndexEntryRow = {
+        id: entry.frontmatter.id,
+        kind: entry.frontmatter.kind,
+        claim: entry.frontmatter.claim,
+        status: entry.frontmatter.status,
+        confidence: entry.frontmatter.confidence,
+        as_of: entry.frontmatter.as_of,
+        updated_at: entry.frontmatter.updated_at,
+        path: relativeFromPriors(projectRoot, entry.location.filePath),
+      };
+      if (entry.frontmatter.readable_id) row.readable_id = entry.frontmatter.readable_id;
+      if (entry.frontmatter.author) row.author = entry.frontmatter.author;
+      if (entry.frontmatter.priority) row.priority = entry.frontmatter.priority;
+      return row;
+    })
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
   const byKind: Record<EntryKind, number> = {
@@ -67,6 +76,7 @@ export function buildIndex(
     pattern: 0,
     question: 0,
     hypothesis: 0,
+    rule: 0,
   };
   let activeCount = 0;
   let supersededCount = 0;
@@ -167,6 +177,9 @@ function orderForStable(value: unknown): unknown {
         "as_of",
         "updated_at",
         "path",
+        "readable_id",
+        "author",
+        "priority",
       ];
       for (const k of order) if (k in obj) out[k] = orderForStable(obj[k]);
       return out;
@@ -189,7 +202,8 @@ function orderForStable(value: unknown): unknown {
       "failure" in obj ||
       "pattern" in obj ||
       "question" in obj ||
-      "hypothesis" in obj
+      "hypothesis" in obj ||
+      "rule" in obj
     ) {
       const order: EntryKind[] = [
         "decision",
@@ -198,6 +212,7 @@ function orderForStable(value: unknown): unknown {
         "question",
         "pattern",
         "hypothesis",
+        "rule",
       ];
       for (const k of order) if (k in obj) out[k] = orderForStable(obj[k]);
       for (const k of Object.keys(obj))

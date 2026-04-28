@@ -1,17 +1,25 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { atomicWrite } from "../util/atomic-write.ts";
 import { priorsRoot } from "./paths.ts";
 
 export type GroundingMode = "strict" | "warn";
 
+/** Auto: agents may auto-log at meaningful checkpoints. Manual: writes only on explicit user ask. */
+export type PriorsMode = "auto" | "manual";
+
+export const PRIORS_MODES: readonly PriorsMode[] = ["auto", "manual"] as const;
+
 export interface PriorsConfig {
   groundingMode: GroundingMode;
   commitThreshold: number;
+  mode: PriorsMode;
 }
 
 export const DEFAULT_CONFIG: PriorsConfig = {
   groundingMode: "strict",
   commitThreshold: 0.0,
+  mode: "auto",
 };
 
 export function configPath(projectRoot: string): string {
@@ -38,7 +46,7 @@ export async function readConfig(projectRoot: string): Promise<PriorsConfig> {
     throw new Error(`priors: ${configPath(projectRoot)} must be an object`);
   }
   const r = raw as Record<string, unknown>;
-  const allowed = new Set(["groundingMode", "commitThreshold"]);
+  const allowed = new Set(["groundingMode", "commitThreshold", "mode"]);
   for (const key of Object.keys(r)) {
     if (!allowed.has(key)) {
       throw new Error(`priors config: unknown field ${key}`);
@@ -58,5 +66,33 @@ export async function readConfig(projectRoot: string): Promise<PriorsConfig> {
     }
     out.commitThreshold = v;
   }
+  if (r["mode"] !== undefined) {
+    if (r["mode"] !== "auto" && r["mode"] !== "manual") {
+      throw new Error(`priors config: mode must be "auto" or "manual"`);
+    }
+    out.mode = r["mode"];
+  }
   return out;
+}
+
+export async function writeConfig(
+  projectRoot: string,
+  config: PriorsConfig,
+): Promise<void> {
+  const ordered = {
+    mode: config.mode,
+    groundingMode: config.groundingMode,
+    commitThreshold: config.commitThreshold,
+  };
+  await atomicWrite(configPath(projectRoot), `${JSON.stringify(ordered, null, 2)}\n`);
+}
+
+export async function setMode(
+  projectRoot: string,
+  mode: PriorsMode,
+): Promise<PriorsConfig> {
+  const cfg = await readConfig(projectRoot);
+  cfg.mode = mode;
+  await writeConfig(projectRoot, cfg);
+  return cfg;
 }
