@@ -75,6 +75,9 @@ export function entryToFileText(entry: Entry): string {
   };
   if (fm.source_ref !== undefined) data["source_ref"] = fm.source_ref;
   if (fm.stale_reason !== undefined) data["stale_reason"] = fm.stale_reason;
+  if (fm.readable_id !== undefined) data["readable_id"] = fm.readable_id;
+  if (fm.author !== undefined) data["author"] = fm.author;
+  if (fm.priority !== undefined) data["priority"] = fm.priority;
   let body = entry.body;
   if (!body.startsWith("\n")) body = `\n${body}`;
   if (!body.endsWith("\n")) body = `${body}\n`;

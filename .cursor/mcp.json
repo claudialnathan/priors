@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "priors": {
+      "command": "node",
+      "args": ["bin/priors.js", "mcp", "--project-root", "."]
+    }
+  }
+}

@@ -33,6 +33,7 @@ test("ENTRY constants list canonical values", () => {
     "pattern",
     "question",
     "hypothesis",
+    "rule",
   ]);
   assert.deepEqual([...ENTRY_STATUSES], [
     "active",

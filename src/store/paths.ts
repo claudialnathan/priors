@@ -9,6 +9,7 @@ const KIND_DIR: Record<EntryKind, string> = {
   pattern: "patterns",
   question: "questions",
   hypothesis: "hypotheses",
+  rule: "rules",
 };
 
 export function kindToDir(kind: EntryKind): string {
