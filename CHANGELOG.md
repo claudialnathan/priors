@@ -6,6 +6,12 @@ This file is maintained for repo developers. It is **not** shipped with the npm 
 
 ## [Unreleased]
 
+### History rewrite (2026-04-28)
+
+`main` was rewritten with `git filter-repo` to remove personal Claude Code dev-tool installs (`.agents/`, `.claude/skills/`, `skills-lock.json`) and the legacy `.cursorrules` from **all** historical commits. Pre-rewrite commit SHAs are no longer reachable. The published `priors@1.0.0-rc.0` and `priors@1.0.0-rc.1` npm tarballs were verified clean before the rewrite (the npm `files[]` allowlist had already excluded those paths from the published packages), so nothing on npm needed retraction.
+
+If you cloned this repo before 2026-04-28 you must re-clone (or `git fetch && git reset --hard origin/main`); old commit SHAs will not match.
+
 ### Layout
 
 - **Slash commands moved from `commands/<name>.md` to `skills/<name>/SKILL.md`** — the modern Claude Code plugin layout per https://code.claude.com/docs/en/plugins. User-visible slash commands are unchanged: all are auto-namespaced as `/priors:<name>` (plugin name `priors` becomes the prefix). The `priors` skill was renamed to `status` so the namespaced form reads `/priors:status` instead of `/priors:priors`.
