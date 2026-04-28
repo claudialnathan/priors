@@ -1,6 +1,6 @@
 {
   "name": "priors",
-  "version": "1.0.0-rc.1",
+  "version": "1.1.0-rc.2",
   "description": "Always-on project memory for Claude Code. Decisions, dead ends, constraints, and rules survive sessions and push back when an idea has already been tried.",
   "author": {
     "name": "Claudia Nathan",
