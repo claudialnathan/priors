@@ -5,6 +5,18 @@ import { runMcpServer } from "../mcp/server.ts";
 import { initProject, requireProject } from "../store/project.ts";
 import { assembleBrief } from "../brief/assemble.ts";
 import { recall } from "../recall/recall.ts";
+import { readConfig, setMode, type PriorsMode, PRIORS_MODES } from "../store/config.ts";
+import { addUserRule, listRules } from "../rules/rules.ts";
+import { userLog } from "../rules/user-log.ts";
+import { listEntries } from "../store/entries.ts";
+import {
+  appendSessionEvent,
+  readSessionEvents,
+} from "../session/log.ts";
+import { buildImpactReport, renderImpactReport } from "../session/impact.ts";
+import { reflect as reflectStore } from "../session/reflect.ts";
+import { detectLogIntent } from "../intent/log-intent.ts";
+import { resolveReadable, normalizeReadable } from "../util/readable-id.ts";
 import {
   commitLearning,
   stageLearning,
@@ -93,6 +105,26 @@ Commands:
   evals [--reporter json|text]  Run the v1 regression suite
   mcp                           Run the stdio MCP server (used by clients)
 
+Plugin / agent surface (used by Claude Code and Cursor commands and hooks):
+
+  mode [auto|manual]            Show or set the write mode
+  status                        Compact status line (mode, counts, last log)
+  log <text> [--kind K] [--rationale R] [--tags a,b]
+                                Force-write a user-authored entry. Skips quote-
+                                or-refuse because the user authored it.
+  rules [--area A] [--priority P]
+                                List active rules
+  rule add <text> [--area A] [--priority high|medium|low] [--rationale R]
+                                Add a user-authored rule (direct write)
+  why [--session SID]           Show priors and rules consulted in this session
+  impact [--session SID]        Show whether Priors helped this session
+  reflect [--session SID] [--horizon-days N]
+                                Drift / appeasement / freshness check
+  resolve <readable-id|id>      Map a readable id (R-002) to a canonical id
+  hook <event> [--text @file] [--session SID]
+                                Hook entry point (session-start, user-prompt,
+                                pre-compact, stop). Bounded and cost-aware.
+
 Global flags:
   --project-root PATH           Override the project root (default: cwd)
   --json                        Emit JSON instead of human-readable text
@@ -179,6 +211,36 @@ export async function run(argv: string[]): Promise<void> {
       return;
     case "mcp":
       await cmdMcp(opts);
+      return;
+    case "mode":
+      await cmdMode(opts);
+      return;
+    case "status":
+      await cmdStatus(opts);
+      return;
+    case "log":
+      await cmdUserLog(opts);
+      return;
+    case "rules":
+      await cmdRulesList(opts);
+      return;
+    case "rule":
+      await cmdRule(opts);
+      return;
+    case "why":
+      await cmdWhy(opts);
+      return;
+    case "impact":
+      await cmdImpact(opts);
+      return;
+    case "reflect":
+      await cmdReflect(opts);
+      return;
+    case "resolve":
+      await cmdResolve(opts);
+      return;
+    case "hook":
+      await cmdHook(opts);
       return;
     default:
       throw new Error(`unknown command: ${command}\n\n${HELP}`);
@@ -756,4 +818,365 @@ async function cmdMcp(opts: CommonOpts): Promise<void> {
     await initProject(opts.projectRoot);
   }
   await runMcpServer({ projectRoot: opts.projectRoot });
+}
+
+/* ── plugin / agent surface ────────────────────────────────────────────── */
+
+function newSessionId(): string {
+  // Short stable token for grouping events within a single Claude Code session.
+  // The hook that issues `session-start` is expected to pass the same id back
+  // for subsequent events, so this fallback is only used when nothing better
+  // is provided.
+  return `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+async function cmdMode(opts: CommonOpts): Promise<void> {
+  await requireProject(opts.projectRoot);
+  const next = opts.rest.shift();
+  if (!next) {
+    const cfg = await readConfig(opts.projectRoot);
+    if (opts.json) {
+      process.stdout.write(`${JSON.stringify({ mode: cfg.mode }, null, 2)}\n`);
+    } else {
+      process.stdout.write(`mode: ${cfg.mode}\n`);
+    }
+    return;
+  }
+  if (!PRIORS_MODES.includes(next as PriorsMode)) {
+    throw new Error(`mode: must be one of ${PRIORS_MODES.join(", ")} (got ${next})`);
+  }
+  const cfg = await setMode(opts.projectRoot, next as PriorsMode);
+  if (opts.json) {
+    process.stdout.write(`${JSON.stringify({ mode: cfg.mode }, null, 2)}\n`);
+  } else {
+    process.stdout.write(`mode: ${cfg.mode}\n`);
+  }
+}
+
+async function cmdStatus(opts: CommonOpts): Promise<void> {
+  const meta = await requireProject(opts.projectRoot);
+  const cfg = await readConfig(opts.projectRoot);
+  const all = await listEntries(opts.projectRoot);
+  const rules = all.filter((e) => e.frontmatter.kind === "rule" && e.frontmatter.status === "active").length;
+  const active = all.filter((e) => e.frontmatter.status === "active").length;
+  const lastEntry = all
+    .slice()
+    .sort((a, b) => (a.frontmatter.updated_at < b.frontmatter.updated_at ? 1 : -1))[0];
+
+  if (opts.json) {
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          project: meta.name,
+          project_id: meta.id,
+          mode: cfg.mode,
+          counts: { active, rules, total: all.length },
+          last_entry: lastEntry
+            ? {
+                readable_id: lastEntry.frontmatter.readable_id ?? null,
+                kind: lastEntry.frontmatter.kind,
+                claim: lastEntry.frontmatter.claim,
+                updated_at: lastEntry.frontmatter.updated_at,
+              }
+            : null,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    return;
+  }
+  process.stdout.write(`priors: ${meta.name}\n`);
+  process.stdout.write(`  mode: ${cfg.mode}\n`);
+  process.stdout.write(`  active: ${active}  rules: ${rules}  total: ${all.length}\n`);
+  if (lastEntry) {
+    const ref = lastEntry.frontmatter.readable_id ?? lastEntry.frontmatter.id;
+    process.stdout.write(`  last:   ${ref} (${lastEntry.frontmatter.kind}) — ${lastEntry.frontmatter.claim}\n`);
+  } else {
+    process.stdout.write(`  last:   (no entries yet — try \`priors log "<text>"\` or \`priors rule add "<rule>"\`)\n`);
+  }
+}
+
+async function cmdUserLog(opts: CommonOpts): Promise<void> {
+  await requireProject(opts.projectRoot);
+  const claimArg = opts.rest.shift();
+  if (!claimArg) throw new Error("log: <text> is required");
+  const claim = claimArg.startsWith("@") ? await resolveContent(claimArg) : claimArg;
+  const kindFlag = takeFlag(opts.rest, "kind");
+  const rationale = takeFlag(opts.rest, "rationale");
+  const tagsArg = takeFlag(opts.rest, "tags");
+  const userText = takeFlag(opts.rest, "user-text");
+  const tsFlag = takeFlag(opts.rest, "ts");
+
+  const result = await userLog(opts.projectRoot, {
+    claim,
+    ...(kindFlag ? { kind: kindFlag as "decision" } : {}),
+    ...(rationale ? { rationale } : {}),
+    ...(tagsArg ? { tags: tagsArg.split(",").map((s) => s.trim()).filter(Boolean) } : {}),
+    ...(userText ? { user_text: userText } : {}),
+    ...(tsFlag ? { ts: tsFlag } : {}),
+  });
+  if (opts.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write(`logged: ${result.readable_id} (${result.kind}) — ${result.claim}\n`);
+}
+
+async function cmdRulesList(opts: CommonOpts): Promise<void> {
+  await requireProject(opts.projectRoot);
+  const areaFilter = takeFlag(opts.rest, "area");
+  const priorityFilter = takeFlag(opts.rest, "priority");
+  const rules = await listRules(opts.projectRoot);
+  const filtered = rules.filter((r) => {
+    if (areaFilter && r.area !== areaFilter) return false;
+    if (priorityFilter && r.priority !== priorityFilter) return false;
+    return true;
+  });
+  if (opts.json) {
+    process.stdout.write(`${JSON.stringify({ rules: filtered }, null, 2)}\n`);
+    return;
+  }
+  if (filtered.length === 0) {
+    process.stdout.write("rules: (none — try `priors rule add \"<rule text>\"`)\n");
+    return;
+  }
+  for (const r of filtered) {
+    const tail = r.area ? ` [area:${r.area}]` : "";
+    process.stdout.write(`  ${r.readable_id}  [${r.priority}/${r.author}]${tail}  ${r.claim}\n`);
+  }
+}
+
+async function cmdRule(opts: CommonOpts): Promise<void> {
+  const sub = opts.rest.shift();
+  if (sub !== "add") {
+    throw new Error("rule: subcommand must be 'add'. (Edit existing rules with `priors edit-staged` after staging.)");
+  }
+  await requireProject(opts.projectRoot);
+  const claimArg = opts.rest.shift();
+  if (!claimArg) throw new Error("rule add: <rule text> is required");
+  const claim = claimArg.startsWith("@") ? await resolveContent(claimArg) : claimArg;
+  const area = takeFlag(opts.rest, "area");
+  const priorityFlag = takeFlag(opts.rest, "priority");
+  const confidence = takeFlag(opts.rest, "confidence");
+  const rationale = takeFlag(opts.rest, "rationale");
+  const tagsArg = takeFlag(opts.rest, "tags");
+
+  const result = await addUserRule(opts.projectRoot, {
+    claim,
+    ...(area ? { area } : {}),
+    ...(priorityFlag ? { priority: priorityFlag as "high" } : {}),
+    ...(confidence ? { confidence: confidence as "high" } : {}),
+    ...(rationale ? { rationale } : {}),
+    ...(tagsArg ? { tags: tagsArg.split(",").map((s) => s.trim()).filter(Boolean) } : {}),
+  });
+  if (opts.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write(`rule added: ${result.readable_id} — ${result.claim}\n`);
+}
+
+async function cmdWhy(opts: CommonOpts): Promise<void> {
+  await requireProject(opts.projectRoot);
+  const sessionFilter = takeFlag(opts.rest, "session");
+  const events = await readSessionEvents(
+    opts.projectRoot,
+    sessionFilter ? { sessionId: sessionFilter } : undefined,
+  );
+  const consulted = new Set<string>();
+  const list: { reference: string; title: string; kind: string }[] = [];
+  for (const ev of events) {
+    if (ev.kind === "recall") {
+      const refs = (ev.payload["entries"] as { reference?: string; title?: string; kind?: string }[] | undefined) ?? [];
+      for (const r of refs) {
+        if (!r.reference || consulted.has(r.reference)) continue;
+        consulted.add(r.reference);
+        list.push({ reference: r.reference, title: r.title ?? "", kind: r.kind ?? "" });
+      }
+    } else if (ev.kind === "rule_applied" || ev.kind === "pushback") {
+      const ref = String(ev.payload["reference"] ?? "");
+      if (!ref || consulted.has(ref)) continue;
+      consulted.add(ref);
+      list.push({
+        reference: ref,
+        title: String(ev.payload["title"] ?? ""),
+        kind: String(ev.payload["kind"] ?? (ev.kind === "rule_applied" ? "rule" : "")),
+      });
+    }
+  }
+  if (opts.json) {
+    process.stdout.write(`${JSON.stringify({ consulted: list }, null, 2)}\n`);
+    return;
+  }
+  if (list.length === 0) {
+    process.stdout.write("why: (no priors consulted in this session yet)\n");
+    return;
+  }
+  process.stdout.write("Priors consulted this session:\n");
+  for (const item of list) {
+    const k = item.kind ? ` [${item.kind}]` : "";
+    process.stdout.write(`  ${item.reference}${k}  ${item.title}\n`);
+  }
+}
+
+async function cmdImpact(opts: CommonOpts): Promise<void> {
+  await requireProject(opts.projectRoot);
+  const sessionFilter = takeFlag(opts.rest, "session");
+  const events = await readSessionEvents(
+    opts.projectRoot,
+    sessionFilter ? { sessionId: sessionFilter } : undefined,
+  );
+  const report = buildImpactReport(events);
+  if (opts.json) {
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write(`${renderImpactReport(report)}\n`);
+}
+
+async function cmdReflect(opts: CommonOpts): Promise<void> {
+  await requireProject(opts.projectRoot);
+  const sessionFilter = takeFlag(opts.rest, "session");
+  const horizonStr = takeFlag(opts.rest, "horizon-days");
+  const horizon = horizonStr ? Number.parseInt(horizonStr, 10) : 90;
+  const all = await listEntries(opts.projectRoot);
+  const events = await readSessionEvents(
+    opts.projectRoot,
+    sessionFilter ? { sessionId: sessionFilter } : undefined,
+  );
+  const today = new Date().toISOString().slice(0, 10);
+  const flags = reflectStore({
+    entries: all,
+    events,
+    today,
+    freshnessHorizonDays: horizon,
+  });
+  if (opts.json) {
+    process.stdout.write(`${JSON.stringify({ flags }, null, 2)}\n`);
+    return;
+  }
+  if (flags.length === 0) {
+    process.stdout.write("reflect: no drift, appeasement, or freshness flags\n");
+    return;
+  }
+  for (const f of flags) {
+    process.stdout.write(`  [${f.kind}] ${f.description}\n`);
+  }
+}
+
+async function cmdResolve(opts: CommonOpts): Promise<void> {
+  await requireProject(opts.projectRoot);
+  const query = opts.rest.shift();
+  if (!query) throw new Error("resolve: <readable-id|id> is required");
+  const all = await listEntries(opts.projectRoot);
+  const candidates = all.map((e) => ({
+    id: e.frontmatter.id,
+    readable_id: e.frontmatter.readable_id,
+    kind: e.frontmatter.kind,
+  }));
+  const hit = resolveReadable(query, candidates);
+  if (opts.json) {
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          query,
+          normalized: normalizeReadable(query),
+          resolved: hit,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    return;
+  }
+  if (!hit) {
+    process.stdout.write(`resolve: no match for ${query}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  process.stdout.write(`${hit.readable_id ?? "(no readable id)"}\t${hit.id}\n`);
+}
+
+async function cmdHook(opts: CommonOpts): Promise<void> {
+  const event = opts.rest.shift();
+  if (!event) throw new Error("hook: <event> is required (session-start|user-prompt|pre-compact|stop)");
+  await requireProject(opts.projectRoot).catch(async () => {
+    await initProject(opts.projectRoot);
+  });
+  const sessionId = takeFlag(opts.rest, "session") ?? newSessionId();
+  const textArg = takeFlag(opts.rest, "text");
+  const text = textArg ? await resolveContent(textArg) : "";
+
+  switch (event) {
+    case "session-start": {
+      await appendSessionEvent(opts.projectRoot, {
+        session_id: sessionId,
+        kind: "session_start",
+        payload: { cwd: opts.projectRoot },
+      });
+      const brief = await assembleBrief(opts.projectRoot);
+      // Emit a compact brief — agents pull deeper sections only on demand.
+      const head = brief.text.split("\n").slice(0, 50).join("\n");
+      const cfg = await readConfig(opts.projectRoot);
+      const out = [
+        `## Priors loaded (mode: ${cfg.mode})`,
+        "",
+        head,
+        "",
+        "_Use `/recall <topic>` for details, `/why` to see what's already been consulted, `/log` to record._",
+      ].join("\n");
+      if (opts.json) {
+        process.stdout.write(`${JSON.stringify({ session_id: sessionId, mode: cfg.mode, head }, null, 2)}\n`);
+      } else {
+        process.stdout.write(`${out}\n`);
+      }
+      return;
+    }
+    case "user-prompt": {
+      const intent = detectLogIntent(text);
+      if (intent.matched) {
+        await appendSessionEvent(opts.projectRoot, {
+          session_id: sessionId,
+          kind: "user_log_intent",
+          payload: {
+            text: text.slice(0, 500),
+            suggested_kind: intent.suggestedKind,
+            trigger: intent.trigger,
+            strength: intent.strength,
+            rule_assertion: intent.ruleAssertion,
+          },
+        });
+      }
+      if (opts.json) {
+        process.stdout.write(`${JSON.stringify({ matched: intent.matched, intent }, null, 2)}\n`);
+      } else if (intent.matched) {
+        process.stdout.write(
+          `priors: detected log intent (${intent.suggestedKind}, ${intent.strength}). Use /log or /rule add to record.\n`,
+        );
+      }
+      return;
+    }
+    case "pre-compact":
+    case "stop": {
+      const cfg = await readConfig(opts.projectRoot);
+      await appendSessionEvent(opts.projectRoot, {
+        session_id: sessionId,
+        kind: event === "stop" ? "session_end" : "recall",
+        payload: { reason: event, mode: cfg.mode },
+      });
+      // The actual significance scan happens in the agent surface (skill);
+      // this hook just emits a checkpoint marker so /impact can show it.
+      if (opts.json) {
+        process.stdout.write(`${JSON.stringify({ session_id: sessionId, event, mode: cfg.mode }, null, 2)}\n`);
+      } else {
+        process.stdout.write(`priors: ${event} checkpoint recorded for session ${sessionId}\n`);
+      }
+      return;
+    }
+    default:
+      throw new Error(
+        `hook: unknown event ${event} (expected session-start, user-prompt, pre-compact, stop)`,
+      );
+  }
 }

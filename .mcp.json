@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "priors": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/priors.js",
+        "mcp",
+        "--project-root",
+        "${CLAUDE_PROJECT_DIR}"
+      ]
+    }
+  }
+}
