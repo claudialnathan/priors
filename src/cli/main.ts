@@ -248,7 +248,13 @@ export async function run(argv: string[]): Promise<void> {
 }
 
 function parseCommon(args: string[]): CommonOpts {
-  let projectRoot = process.cwd();
+  // Default to CLAUDE_PROJECT_DIR when present (set by Claude Code for hooks
+  // and plugin-spawned processes); fall back to cwd otherwise.
+  let projectRoot = path.resolve(
+    process.env.CLAUDE_PROJECT_DIR && !isUnexpandedPlaceholder(process.env.CLAUDE_PROJECT_DIR)
+      ? process.env.CLAUDE_PROJECT_DIR
+      : process.cwd(),
+  );
   let json = false;
   const rest: string[] = [];
   for (let i = 0; i < args.length; i++) {
@@ -256,9 +262,13 @@ function parseCommon(args: string[]): CommonOpts {
     if (a === "--project-root") {
       const v = args[++i];
       if (!v) throw new Error("--project-root requires a value");
-      projectRoot = path.resolve(v);
+      // Ignore unexpanded `${VAR}` placeholders — some clients (notably plugin
+      // .mcp.json files in Claude Code) don't expand every variable, and we
+      // must not create directories named literally `${CLAUDE_PROJECT_DIR}`.
+      if (!isUnexpandedPlaceholder(v)) projectRoot = path.resolve(v);
     } else if (a === "--project-root=" || a.startsWith("--project-root=")) {
-      projectRoot = path.resolve(a.slice("--project-root=".length));
+      const v = a.slice("--project-root=".length);
+      if (!isUnexpandedPlaceholder(v)) projectRoot = path.resolve(v);
     } else if (a === "--json") {
       json = true;
     } else if (a === "-h" || a === "--help") {
@@ -268,6 +278,16 @@ function parseCommon(args: string[]): CommonOpts {
     }
   }
   return { projectRoot, json, rest };
+}
+
+/**
+ * True when `v` is an unexpanded `${VAR}` placeholder. Some hosts (notably
+ * Claude Code plugin .mcp.json files) only expand a fixed set of variables,
+ * so a literal `${CLAUDE_PROJECT_DIR}` can leak through to argv. We must not
+ * resolve that as a real path — it would create a junk directory.
+ */
+function isUnexpandedPlaceholder(v: string): boolean {
+  return /^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/.test(v);
 }
 
 function takeFlag(rest: string[], name: string): string | undefined {
